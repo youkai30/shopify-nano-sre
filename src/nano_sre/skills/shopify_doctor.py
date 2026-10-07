@@ -87,7 +87,7 @@ class ShopifyDoctorSkill(Skill):
 
             # Navigate to storefront to capture console errors
             logger.info(f"Navigating to storefront: {settings.store_url_str}")
-            await page.goto(settings.store_url_str, wait_until="networkidle")
+            await page.goto(settings.store_url_str, wait_until="commit")
             await asyncio.sleep(2)  # Wait for any async console errors
 
             # Report console errors as warnings to avoid failing audits on demo stores
@@ -291,3 +291,4 @@ class ShopifyDoctorSkill(Skill):
             logger.exception(f"Unexpected error in API checks: {e}")
 
         return {"issues": issues, "warnings": warnings, "details": details}
+

@@ -272,7 +272,6 @@ async def _run_audit(
                     "device_scale_factor": 3,
                     "is_mobile": True,
                     "has_touch": True,
-                    "default_browser_type": "webkit",
                 }
 
             browser = await p.chromium.launch(headless=True)
@@ -280,7 +279,7 @@ async def _run_audit(
             page = await context.new_page()
 
             try:
-                await page.goto(url, wait_until="networkidle")
+                await page.goto(url, wait_until="commit", timeout=60000)
 
                 # Handle Shopify password if needed
                 if settings.store_password:

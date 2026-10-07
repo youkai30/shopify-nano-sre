@@ -28,7 +28,7 @@ async def bypass_shopify_password(page: Page, password: str) -> bool:
             logger.info("Shopify password page detected, entering password...")
             await password_input.fill(password)
             await password_input.press("Enter")
-            await page.wait_for_load_state("networkidle")
+            await page.wait_for_load_state("domcontentloaded")
             return True
 
         return False

@@ -2,6 +2,9 @@
 
 import asyncio
 import logging
+import re
+from datetime import datetime, timezone
+from urllib.parse import unquote, urljoin, urlparse
 from typing import Any
 
 from nano_sre.agent.core import Skill, SkillResult
@@ -10,13 +13,6 @@ logger = logging.getLogger(__name__)
 
 
 class ShopifyShopper(Skill):
-    """
-    Simulates a synthetic shopper journey:
-    1. Home Page
-    2. Product Page
-    3. Add to Cart
-    4. View Cart
-    """
 
     def name(self) -> str:
         return "shopify_shopper"
@@ -24,89 +20,678 @@ class ShopifyShopper(Skill):
     async def run(self, context: dict[str, Any]) -> SkillResult:
         page = context.get("page")
         base_url: str = context.get("base_url", "")
+        steps = []
+        cart_evidence: list[dict[str, Any]] = []
+        cart_evidence_meta: dict[str, Any] = _empty_cart_meta()
+        cart_collector = _CartEvidenceCollector(cart_evidence, cart_evidence_meta)
+        selected_product_url = None
+        item_count = None
+        cart_verified = False
 
         if not page or not base_url:
             return SkillResult(
                 skill_name=self.name(),
                 status="FAIL",
                 summary="Missing page or base_url in context",
+                details={"steps": steps, "cart_evidence": cart_evidence,
+                         "cart_evidence_meta": cart_evidence_meta},
             )
 
-        steps = []
         try:
-            # 1. Home Page
-            logger.info(f"Shopper starting at Home: {base_url}")
-            await page.goto(base_url, wait_until="networkidle")
+            # 1. Home
+            await page.goto(
+                base_url,
+                wait_until="commit",
+                timeout=60000,
+            )
             steps.append("Visited Home Page")
 
-            # 2. Find a product and click it
-            # Look for product links that are likely to be real products
-            product_link = page.locator('a[href*="/products/"]').first
+            # 2. Determine product source
+            if "/products/" in base_url.lower():
+                # The supplied URL is already a product page.
+                product_urls = [base_url]
+                steps.append("Using supplied product page")
 
-            # Specifically look for the liquid snowboard if it's there (since we baselined it)
-            liquid_link = page.locator('a[href*="/products/the-collection-snowboard-liquid"]').first
-            if await liquid_link.count() > 0:
-                product_link = liquid_link
-
-            if await product_link.count() > 0:
-                product_url = await product_link.get_attribute("href")
-                if product_url:
-                    if not product_url.startswith("http"):
-                        product_url = base_url.rstrip("/") + product_url
-
-                    logger.info(f"Navigating to product: {product_url}")
-                    await page.goto(product_url, wait_until="networkidle")
-                    steps.append(f"Visited Product Page: {product_url}")
             else:
-                return SkillResult(
-                    skill_name=self.name(),
-                    status="FAIL",
-                    summary="Could not find any product link on Home Page",
+                # Store homepage: discover products from the new-in collection.
+                collection_url = (
+                    f"{base_url.rstrip('/')}/collections/new-in"
                 )
 
-            # 3. Add to Cart
-            # Look for Add to Cart button
-            atc_button = page.locator(
-                'button[name="add"], button:has-text("Add to cart"), [data-testid="add-to-cart"]'
-            )
-            if await atc_button.count() > 0:
-                logger.info("Clicking Add to Cart")
-                await atc_button.first.click()
-                await asyncio.sleep(2)  # Wait for animation/ajax
-                steps.append("Clicked Add to Cart")
-            else:
+                await page.goto(
+                    collection_url,
+                    wait_until="commit",
+                    timeout=60000,
+                )
+
+                steps.append("Visited Product Collection")
+
+                # Give client-side rendered product links a moment to appear.
+                await asyncio.sleep(2)
+
+                product_links = page.locator(
+                    'a[href*="/products/"]'
+                )
+
+                excluded = (
+                    "gift-card",
+                    "gift_card",
+                    "giftcard",
+                    "donation",
+                )
+
+                count = await product_links.count()
+                product_urls = []
+
+                for i in range(min(count, 30)):
+                    try:
+                        href = await product_links.nth(i).get_attribute(
+                            "href",
+                            timeout=5000,
+                        )
+                    except Exception:
+                        continue
+
+                    if not href:
+                        continue
+
+                    if any(term in href.lower() for term in excluded):
+                        continue
+
+                    product_url = href
+
+                    # Absolute URL
+                    if product_url.startswith("http"):
+                        pass
+
+                    # Protocol-relative URL
+                    elif product_url.startswith("//"):
+                        product_url = "https:" + product_url
+
+                    # Relative URL
+                    elif product_url.startswith("/"):
+                        product_url = (
+                            base_url.rstrip("/") + product_url
+                        )
+
+                    else:
+                        product_url = (
+                            base_url.rstrip("/") + "/" + product_url
+                        )
+
+                    if product_url not in product_urls:
+                        product_urls.append(product_url)
+
+            # If /collections/new-in returned no products, discover products
+            # directly from the store homepage instead.
+            if not product_urls:
+                await page.goto(
+                    base_url,
+                    wait_until="commit",
+                    timeout=60000,
+                )
+
+                steps.append(
+                    "New-in collection yielded no products; "
+                    "falling back to homepage product discovery"
+                )
+
+                await asyncio.sleep(2)
+
+                product_links = page.locator(
+                    'a[href*="/products/"]'
+                )
+
+                count = await product_links.count()
+
+                for i in range(min(count, 30)):
+                    try:
+                        href = await product_links.nth(i).get_attribute(
+                            "href",
+                            timeout=5000,
+                        )
+                    except Exception:
+                        continue
+
+                    if not href:
+                        continue
+
+                    if any(term in href.lower() for term in excluded):
+                        continue
+
+                    product_url = href
+
+                    if product_url.startswith("http"):
+                        pass
+                    elif product_url.startswith("//"):
+                        product_url = "https:" + product_url
+                    elif product_url.startswith("/"):
+                        product_url = (
+                            base_url.rstrip("/") + product_url
+                        )
+                    else:
+                        product_url = (
+                            base_url.rstrip("/") + "/" + product_url
+                        )
+
+                    if product_url not in product_urls:
+                        product_urls.append(product_url)
+
+            # If homepage discovery also yielded no products, use the
+            # standard Shopify products.json endpoint as a final fallback.
+            if not product_urls:
+                products_json_url = (
+                    f"{base_url.rstrip('/')}/products.json?limit=30"
+                )
+
+                try:
+                    response = await page.request.get(
+                        products_json_url,
+                        timeout=30000,
+                    )
+
+                    if response.ok:
+                        data = await response.json()
+                        products = data.get("products", [])
+
+                        steps.append(
+                            f"Shopify products.json returned "
+                            f"{len(products)} product(s)"
+                        )
+
+                        for product in products:
+                            handle = product.get("handle")
+
+                            if not handle:
+                                continue
+
+                            if any(
+                                term in handle.lower()
+                                for term in excluded
+                            ):
+                                continue
+
+                            product_url = (
+                                f"{base_url.rstrip('/')}/products/{handle}"
+                            )
+
+                            if product_url not in product_urls:
+                                product_urls.append(product_url)
+
+                    else:
+                        steps.append(
+                            "Shopify products.json fallback returned "
+                            f"HTTP {response.status}"
+                        )
+
+                except Exception as e:
+                    steps.append(
+                        "Shopify products.json fallback failed: "
+                        f"{type(e).__name__}"
+                    )
+
+            # 3. Find a product with a genuinely enabled Add to Cart button
+            tested_products = []
+            atc_button = None
+            selected_product_url = None
+
+            for product_url in product_urls[:30]:
+                if product_url in tested_products:
+                    continue
+
+                tested_products.append(product_url)
+
+                try:
+                    await page.goto(
+                        product_url,
+                        wait_until="commit",
+                        timeout=60000,
+                    )
+
+                    # Allow hydration / Alpine / theme JS to initialize.
+                    await asyncio.sleep(2)
+
+                    # --------------------------------------------------
+                    # 3A. Prefer the actual Shopify product offer form.
+                    #
+                    # Sophie Allport uses:
+                    #
+                    # form.prd-ProductOffers_Form
+                    #   button.prd-ProductOffers_Submit
+                    #
+                    # This is much safer than searching the entire page.
+                    # --------------------------------------------------
+                    product_form = page.locator(
+                        "form.prd-ProductOffers_Form"
+                    ).first
+
+                    if await product_form.count() > 0:
+                        try:
+                            await product_form.wait_for(
+                                state="visible",
+                                timeout=5000,
+                            )
+                        except Exception:
+                            pass
+
+                        form_button = product_form.locator(
+                            'button[type="submit"][name="add"]'
+                        ).first
+
+                        if await form_button.count() > 0:
+                            try:
+                                is_visible = await form_button.is_visible()
+                                is_enabled = await form_button.is_enabled()
+
+                                if is_visible and is_enabled:
+                                    atc_button = form_button
+                                    selected_product_url = _safe_url(product_url)
+
+                                    steps.append("Selected purchasable product")
+
+                                    logger.info(
+                                        "Found product ATC inside product "
+                                        "form: %s",
+                                        product_url,
+                                    )
+
+                                    break
+
+                            except Exception as form_button_error:
+                                logger.debug(
+                                    "Could not validate product form "
+                                    "button on %s: %s",
+                                    product_url,
+                                    form_button_error,
+                                )
+
+                    # --------------------------------------------------
+                    # 3B. Generic Shopify fallbacks.
+                    # --------------------------------------------------
+                    generic_selectors = [
+                        (
+                            'button.add-to-cart'
+                            ':not([disabled]):visible'
+                        ),
+                        (
+                            'button[name="add"]'
+                            ':not([disabled]):visible'
+                            ':not([data-quick-add-btn])'
+                        ),
+                        (
+                            '[data-testid="add-to-cart"]'
+                            ':not([disabled]):visible'
+                        ),
+                        (
+                            'button.btn-transaction'
+                            ':not([disabled]):visible'
+                            ':has-text("ADD TO BAG")'
+                        ),
+                        (
+                            'button:has-text("ADD TO CART")'
+                            ':not([disabled]):visible'
+                        ),
+                        (
+                            'button:has-text("ADD TO BAG")'
+                            ':not([disabled]):visible'
+                        ),
+                    ]
+
+                    for selector in generic_selectors:
+                        candidate = page.locator(selector).first
+
+                        try:
+                            if await candidate.count() == 0:
+                                continue
+
+                            if not await candidate.is_visible():
+                                continue
+
+                            if not await candidate.is_enabled():
+                                continue
+
+                            atc_button = candidate
+                            selected_product_url = _safe_url(product_url)
+
+                            steps.append("Selected purchasable product")
+
+                            logger.info(
+                                "Found generic product ATC using "
+                                "selector '%s': %s",
+                                selector,
+                                product_url,
+                            )
+
+                            break
+
+                        except Exception as selector_error:
+                            logger.debug(
+                                "Selector failed on %s: %s",
+                                product_url,
+                                selector_error,
+                            )
+
+                    if atc_button is not None:
+                        break
+
+                except Exception as product_error:
+                    logger.debug(
+                        "Skipping product %s: %s",
+                        product_url,
+                        product_error,
+                    )
+
+            # No purchasable product found.
+            if atc_button is None:
                 return SkillResult(
                     skill_name=self.name(),
                     status="WARN",
-                    summary="Could not find Add to Cart button on product page",
-                    details={"steps": steps},
+                    summary=(
+                        "Could not find a product with an enabled "
+                        "Add to Cart button"
+                    ),
+                    details={
+                        "steps": steps,
+                        "products_tested": len(tested_products),
+                        "product_urls_found": len(product_urls),
+                        "cart_evidence": cart_evidence,
+                        "cart_evidence_meta": cart_evidence_meta,
+                    },
                 )
 
-            # 4. View Cart
-            # Navigate to /cart directly as it's more reliable than finding the cart icon
-            logger.info("Navigating to Cart")
-            await page.goto(f"{base_url.rstrip('/')}/cart", wait_until="networkidle")
-            steps.append("Visited Cart Page")
+            # 4. Add to Cart
+            logger.info(
+                "Clicking Add to Cart for product: %s",
+                selected_product_url,
+            )
 
-            # Check if cart is not empty
-            cart_item = page.locator('.cart-item, .cart__item, [data-testid="cart-item"]')
-            if await cart_item.count() > 0:
-                status = "PASS"
-                summary = "Shopper journey completed successfully (Product -> Cart)"
-            else:
-                status = "WARN"
-                summary = "Shopper journey completed but cart appears empty"
+            await atc_button.click(timeout=15000)
+
+            # Allow cart UI / network state to update.
+            await asyncio.sleep(3)
+
+            steps.append("Clicked Add to Cart")
+
+            # 5. Keep journey verification and evidence acquisition separate.
+            await asyncio.sleep(2)
+            cart_dialog = page.locator('[role="dialog"][aria-modal="true"]:visible').first
+            if await cart_dialog.count() > 0:
+                cart_verified = True
+                steps.append("Cart drawer detected")
+                item_count = await _drawer_item_count(page, cart_dialog)
+                await cart_collector.collect(page, "auto_open_drawer")
+
+            if not cart_verified:
+                open_cart = page.locator('button[aria-label*="Open cart" i]:visible').first
+                if await open_cart.count() > 0:
+                    try:
+                        await open_cart.click(timeout=10000)
+                        await asyncio.sleep(2)
+                        cart_dialog = page.locator(
+                            '[role="dialog"][aria-modal="true"]:visible'
+                        ).first
+                        if await cart_dialog.count() > 0:
+                            cart_verified = True
+                            steps.append("Opened cart drawer")
+                            item_count = await _drawer_item_count(page, cart_dialog)
+                            await cart_collector.collect(page, "shopper_opened_drawer")
+                    except Exception as open_cart_error:
+                        logger.debug("Could not open cart drawer: %s", type(open_cart_error).__name__)
+
+            # 5C is a single API-only fallback if no drawer path attempted it.
+            if not cart_collector.attempted:
+                await cart_collector.collect(page, "api_only_fallback")
+            if (cart_evidence_meta["status"] in ("empty", "nonempty")
+                    and cart_evidence_meta.get("trigger") != "auto_open_drawer"):
+                api_count = cart_evidence_meta.get("api_total_quantity")
+                if api_count is not None:
+                    item_count = api_count
+                    if api_count > 0:
+                        cart_verified = True
+                        if "Cart verified through cart.js" not in steps:
+                            steps.append(f"Cart verified through cart.js: {api_count} item(s)")
+
+            # Neither UI nor API confirmed the cart.
+            if not cart_verified or item_count is None or item_count <= 0:
+                return SkillResult(
+                    skill_name=self.name(),
+                    status="WARN",
+                    summary=(
+                        "Add to Cart was clicked but cart state "
+                        "could not be verified"
+                    ),
+                    details={
+                        "steps": steps,
+                        "cart_item_count": item_count,
+                        "selected_product": selected_product_url,
+                        "cart_evidence": cart_evidence,
+                        "cart_evidence_meta": cart_evidence_meta,
+                    },
+                )
+
+            steps.append(
+                f"Cart verified: {item_count} item(s)"
+            )
+
+            # 6. Find visible checkout button.
+            checkout_button = page.locator(
+                'button:has-text("CHECKOUT"):visible, '
+                'a:has-text("CHECKOUT"):visible, '
+                'button:has-text("Check out"):visible, '
+                'a:has-text("Check out"):visible, '
+                'input[name="checkout"]:visible, '
+                'button[name="checkout"]:visible, '
+                'button[type="submit"]:has-text("Check Out"):visible, '
+                'input[type="submit"][value*="Check Out"]:visible'
+            ).first
+
+            # Traditional /cart fallback.
+            if await checkout_button.count() == 0:
+                cart_url = await _cart_root(page) + "cart"
+
+                try:
+                    await page.goto(
+                        cart_url,
+                        wait_until="commit",
+                        timeout=60000,
+                    )
+
+                    await asyncio.sleep(2)
+                    steps.append("Visited Cart Page")
+
+                    checkout_button = page.locator(
+                        'input[name="checkout"]:visible, '
+                        'button[name="checkout"]:visible, '
+                        'button[type="submit"]:has-text("Check Out"):visible, '
+                        'input[type="submit"][value*="Check Out"]:visible, '
+                        'button:has-text("CHECKOUT"):visible, '
+                        'a:has-text("CHECKOUT"):visible'
+                    ).first
+
+                except Exception as cart_page_error:
+                    logger.debug(
+                        "Could not visit traditional cart page: %s",
+                        cart_page_error,
+                    )
+
+            # Checkout button missing.
+            if await checkout_button.count() == 0:
+                return SkillResult(
+                    skill_name=self.name(),
+                    status="WARN",
+                    summary="Visible checkout button not found in cart",
+                    details={
+                        "steps": steps,
+                        "cart_item_count": item_count,
+                        "selected_product": selected_product_url,
+                        "cart_evidence": cart_evidence,
+                        "cart_evidence_meta": cart_evidence_meta,
+                    },
+                )
+
+            logger.info("Clicking visible checkout button")
+
+            await checkout_button.click(timeout=15000)
+
+            await asyncio.sleep(5)
+
+            final_url = page.url
+
+            checkout_reached = bool(re.search(r"/checkouts?(?:/|$)", urlparse(final_url).path, re.I))
+            if checkout_reached:
+                steps.append("Visited Checkout")
+
+            # 7. Verify checkout was reached.
+            if checkout_reached:
+                return SkillResult(
+                    skill_name=self.name(),
+                    status="PASS",
+                    summary=(
+                        "Shopper journey reached checkout successfully "
+                        "(Product -> Cart -> Checkout)"
+                    ),
+                    details={
+                        "steps": steps,
+                        "cart_item_count": item_count,
+                        "checkout_url": _safe_url(final_url),
+                        "selected_product": selected_product_url,
+                        "cart_evidence": cart_evidence,
+                        "cart_evidence_meta": cart_evidence_meta,
+                    },
+                )
 
             return SkillResult(
-                skill_name=self.name(), status=status, summary=summary, details={"steps": steps}
+                skill_name=self.name(),
+                status="WARN",
+                summary="Checkout navigation did not reach an expected checkout URL",
+                details={
+                    "steps": steps,
+                    "cart_item_count": item_count,
+                    "current_url": _safe_url(final_url),
+                    "selected_product": selected_product_url,
+                    "cart_evidence": cart_evidence,
+                    "cart_evidence_meta": cart_evidence_meta,
+                },
             )
 
         except Exception as e:
             logger.exception("Shopper journey failed")
+
             return SkillResult(
                 skill_name=self.name(),
                 status="FAIL",
-                summary=f"Shopper journey failed: {str(e)}",
-                error=str(e),
-                details={"steps": steps},
+                summary="Shopper journey failed",
+                error=f"shopper_journey_error:{type(e).__name__}",
+                details={"steps": steps, "selected_product": selected_product_url,
+                         "cart_item_count": item_count, "cart_evidence": cart_evidence,
+                         "cart_evidence_meta": cart_evidence_meta},
             )
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _empty_cart_meta() -> dict[str, Any]:
+    return {"status": "not_attempted", "source": "none", "trigger": None,
+            "attempted_at": None, "captured_at": None, "api_total_quantity": None,
+            "api_line_count": None, "http_status": None, "error_code": None}
+
+
+def _safe_url(url: str) -> str:
+    parsed = urlparse(url)
+    if not parsed.scheme or not parsed.netloc or parsed.username or parsed.password:
+        return ""
+    path = parsed.path
+    checkout_match = re.match(r"^(.*?/checkouts?)(?:/.*)?$", path, re.IGNORECASE)
+    if checkout_match:
+        # Shopify checkout path segments can contain the checkout session token.
+        # Keep the route for evidence while never persisting the token itself.
+        path = checkout_match.group(1) + "/[redacted]"
+    return f"{parsed.scheme}://{parsed.netloc}{path}"
+
+
+async def _cart_root(page) -> str:
+    current = urlparse(page.url)
+    if current.scheme not in ("http", "https") or not current.hostname or current.username or current.password:
+        raise ValueError("unsafe_store_url")
+    candidate = None
+    try:
+        candidate = await page.evaluate(
+            "() => window.Shopify && window.Shopify.routes && window.Shopify.routes.root"
+        )
+    except Exception:
+        pass
+    if isinstance(candidate, str) and candidate:
+        raw_root = urlparse(candidate)
+        if ".." in raw_root.path.split("/"):
+            raise ValueError("unsafe_shopify_root")
+        root = urlparse(urljoin(f"{current.scheme}://{current.netloc}/", candidate))
+        if (root.scheme != current.scheme or root.netloc != current.netloc or root.username
+                or root.password or ".." in root.path.split("/") or root.query or root.fragment
+                or not root.path.endswith("/")):
+            raise ValueError("unsafe_shopify_root")
+        return f"{root.scheme}://{root.netloc}{root.path}"
+    parts = [part for part in current.path.split("/") if part]
+    locale = parts[0] + "/" if parts and re.fullmatch(r"[a-zA-Z]{2}(?:-[a-zA-Z]{2})?", parts[0]) else ""
+    return f"{current.scheme}://{current.netloc}/{locale}"
+
+
+def _validate_cart_payload(data: Any) -> tuple[list[dict[str, Any]], int, int]:
+    if not isinstance(data, dict) or not isinstance(data.get("items"), list):
+        raise ValueError("invalid_schema")
+    item_count = data.get("item_count")
+    if isinstance(item_count, bool) or not isinstance(item_count, int) or item_count < 0:
+        raise ValueError("invalid_item_count")
+    lines, total = [], 0
+    for item in data["items"]:
+        if not isinstance(item, dict):
+            raise ValueError("invalid_line")
+        quantity = item.get("quantity")
+        if isinstance(quantity, bool) or not isinstance(quantity, int) or quantity <= 0:
+            raise ValueError("invalid_quantity")
+        total += quantity
+        line = {key: item.get(key) for key in (
+            "key", "variant_id", "product_id", "product_title", "variant_title", "handle")}
+        line["quantity"] = quantity
+        plan = item.get("selling_plan_id")
+        if isinstance(plan, (str, int)) and not isinstance(plan, bool):
+            line["selling_plan_id"] = plan
+        lines.append(line)
+    if total != item_count:
+        raise ValueError("inconsistent_item_count")
+    return lines, total, len(lines)
+
+
+class _CartEvidenceCollector:
+    def __init__(self, evidence: list[dict[str, Any]], meta: dict[str, Any]):
+        self.evidence, self.meta = evidence, meta
+        self.attempted = False
+
+    async def collect(self, page, trigger: str) -> None:
+        if self.attempted:
+            return
+        self.attempted = True
+        self.meta.update(status="failed", source="api", trigger=trigger,
+                         attempted_at=_now(), error_code="request_failed")
+        response = None
+        try:
+            root = await _cart_root(page)
+            response = await page.request.get(root + "cart.js", timeout=10000, max_redirects=0)
+            self.meta["http_status"] = response.status
+            if not response.ok:
+                self.meta["error_code"] = f"http_{response.status}"
+                return
+            lines, total, line_count = _validate_cart_payload(await response.json())
+            self.evidence.extend(lines)
+            self.meta.update(status="nonempty" if lines else "empty", error_code=None,
+                             api_total_quantity=total, api_line_count=line_count, captured_at=_now())
+        except Exception as exc:
+            self.meta["error_code"] = getattr(exc, "code", None) or type(exc).__name__.lower()
+            logger.debug("Cart evidence collection failed (%s)", self.meta["error_code"])
+        finally:
+            if response is not None:
+                try:
+                    await response.dispose()
+                except Exception:
+                    pass

@@ -80,6 +80,11 @@ class PixelAuditor(Skill):
 
             # Wait for events to be captured
             await asyncio.sleep(2)
+            # Collect events captured by the injected Shopify analytics hook
+            await self._collect_tracked_events(page)
+
+            # Allow pending Playwright network interception callbacks to finish
+            await asyncio.sleep(1)
 
             # Validate tracked events
             self._validate_events()
@@ -259,6 +264,7 @@ class PixelAuditor(Skill):
         """Collect events from the injected hook."""
         try:
             events = await page.evaluate("window._pixelAuditorEvents || []")
+            logger.info(f"Pixel hook currently contains {len(events)} events")
             self.tracked_events.extend(events)
             logger.info(f"Collected {len(events)} analytics events")
         except Exception as e:
@@ -329,8 +335,9 @@ class PixelAuditor(Skill):
         """
         Generate pixel health report.
 
-        Returns:
-            SkillResult with comprehensive health status
+        Network pixel hits and browser-hook events are treated as
+        separate evidence sources. A missing browser-hook event does
+        not imply that analytics are absent when network activity exists.
         """
         total_events = len(self.tracked_events)
         total_errors = len(self.validation_errors)
@@ -341,31 +348,60 @@ class PixelAuditor(Skill):
             event_name = event.get("event", "unknown")
             event_counts[event_name] = event_counts.get(event_name, 0) + 1
 
-        # Count pixel hits by platform
-        pixel_status = {platform: len(hits) for platform, hits in self.pixel_hits.items()}
+        # Count network pixel hits by platform
+        pixel_status = {
+            platform: len(hits)
+            for platform, hits in self.pixel_hits.items()
+        }
+        total_pixel_hits = sum(pixel_status.values())
 
         # Determine overall status
         if total_errors > 0:
-            status = "WARN" if total_errors < total_events / 2 else "FAIL"
-            summary = f"Pixel Health: {total_errors} validation errors found"
-        elif total_events == 0:
+            if total_events == 0:
+                status = "WARN"
+                summary = (
+                    f"Pixel Health: {total_errors} validation errors found; "
+                    f"no browser-hook events captured"
+                )
+            else:
+                status = "WARN" if total_errors < total_events / 2 else "FAIL"
+                summary = f"Pixel Health: {total_errors} validation errors found"
+
+        elif total_events == 0 and total_pixel_hits == 0:
             status = "WARN"
-            summary = "Pixel Health: No analytics events detected"
+            summary = (
+                "Pixel Health: No browser analytics events or "
+                "recognized network pixel hits detected"
+            )
+
+        elif total_events == 0 and total_pixel_hits > 0:
+            status = "WARN"
+            summary = (
+                f"Pixel Health: {total_pixel_hits} network pixel hit(s) detected; "
+                "browser event hook captured no events"
+            )
+
         else:
             status = "PASS"
-            summary = f"Pixel Health: All {total_events} events validated successfully"
+            summary = (
+                f"Pixel Health: {total_events} browser event(s) captured; "
+                f"{total_pixel_hits} network pixel hit(s) detected"
+            )
 
         details = {
             "total_events": total_events,
             "event_counts": event_counts,
             "validation_errors": self.validation_errors,
             "pixel_hits": pixel_status,
+            "total_pixel_hits": total_pixel_hits,
             "pixel_details": self.pixel_hits,
             "mock_mode": self.mock_mode,
         }
 
         logger.info(
-            f"Pixel audit complete: {total_events} events, {total_errors} errors, status={status}"
+            f"Pixel audit complete: {total_events} browser events, "
+            f"{total_pixel_hits} network pixel hits, "
+            f"{total_errors} validation errors, status={status}"
         )
 
         return SkillResult(
@@ -374,3 +410,4 @@ class PixelAuditor(Skill):
             summary=summary,
             details=details,
         )
+

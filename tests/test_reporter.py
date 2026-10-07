@@ -68,7 +68,7 @@ async def test_generate_report_content():
             report_dir=tmpdir,
         )
 
-        content = Path(report_path).read_text()
+        content = Path(report_path).read_text(encoding="utf-8")
 
         # Check header
         assert "# Incident Report" in content
@@ -116,7 +116,7 @@ async def test_generate_report_with_screenshots():
             report_dir=tmpdir,
         )
 
-        content = Path(report_path).read_text()
+        content = Path(report_path).read_text(encoding="utf-8")
 
         assert "**Screenshots:**" in content
         assert "screenshot1.png" in content
@@ -146,7 +146,7 @@ async def test_generate_report_with_ai_diagnosis():
             ai_diagnosis=ai_diagnosis,
         )
 
-        content = Path(report_path).read_text()
+        content = Path(report_path).read_text(encoding="utf-8")
 
         assert "## AI Diagnosis" in content
         assert ai_diagnosis in content
@@ -173,7 +173,7 @@ async def test_generate_report_no_ai_diagnosis_when_not_configured():
             ai_diagnosis="This should not appear",
         )
 
-        content = Path(report_path).read_text()
+        content = Path(report_path).read_text(encoding="utf-8")
 
         assert "## AI Diagnosis" not in content
         assert "This should not appear" not in content
@@ -209,7 +209,7 @@ async def test_generate_report_with_details():
             report_dir=tmpdir,
         )
 
-        content = Path(report_path).read_text()
+        content = Path(report_path).read_text(encoding="utf-8")
 
         # Check that details are included
         assert "rate_limit_issues" in content
@@ -259,7 +259,7 @@ async def test_generate_report_statistics():
             report_dir=tmpdir,
         )
 
-        content = Path(report_path).read_text()
+        content = Path(report_path).read_text(encoding="utf-8")
 
         # Check statistics
         assert "**Total Skills:** 4" in content

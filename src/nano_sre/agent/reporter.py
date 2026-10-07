@@ -235,7 +235,7 @@ def _format_details(details: dict[str, Any], indent: int = 0) -> str:
                     lines.append(f"{indent_str}- **{key}:**")
                     lines.append(rendered)
         elif isinstance(value, list):
-            if value:
+            if value or key == "cart_evidence":
                 # Special handling for MCP recommendations to make them readable
                 if key == "recommendations":
                     lines.append(f"{indent_str}- **{key}:**")

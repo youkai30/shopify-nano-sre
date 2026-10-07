@@ -135,7 +135,7 @@ class VisualAuditor(Skill):
         """
         # Navigate to page
         url = f"{base_url.rstrip('/')}{page_path}"
-        await page.goto(url, wait_until="networkidle")
+        await page.goto(url, wait_until="commit")
 
         # Generate filename from path
         filename = page_path.strip("/").replace("/", "_") or "index"
@@ -317,3 +317,4 @@ class VisualAuditor(Skill):
         except Exception as e:
             logger.exception(f"Error getting LLM assessment: {e}")
             return f"LLM assessment failed: {str(e)}"
+

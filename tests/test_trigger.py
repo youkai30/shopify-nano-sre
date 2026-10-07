@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 import pytest
 
 from nano_sre.agent.trigger import IntervalTrigger, TriggerManager, WebhookTrigger
+import nano_sre.agent.trigger as trigger_module
 
 
 class TestIntervalTrigger:
@@ -56,15 +57,25 @@ class TestIntervalTrigger:
         assert trigger.last_triggered is not None
         assert isinstance(trigger.last_triggered, datetime)
 
-    def test_mark_triggered_updates_timestamp(self):
+    def test_mark_triggered_updates_timestamp(self, monkeypatch):
         """Test that marking triggered updates timestamp."""
         trigger = IntervalTrigger(interval_minutes=5)
+        first = datetime(2026, 1, 1, 0, 0, 0)
+        second = datetime(2026, 1, 1, 0, 0, 1)
+        times = iter((first, second))
+
+        class ControlledDateTime(datetime):
+            @classmethod
+            def utcnow(cls):
+                return next(times)
+
+        monkeypatch.setattr(trigger_module, "datetime", ControlledDateTime)
 
         trigger.mark_triggered()
         first_time = trigger.last_triggered
 
         # Manually set to past
-        trigger.last_triggered = datetime.utcnow() - timedelta(minutes=10)
+        trigger.last_triggered = first - timedelta(minutes=10)
 
         trigger.mark_triggered()
         second_time = trigger.last_triggered

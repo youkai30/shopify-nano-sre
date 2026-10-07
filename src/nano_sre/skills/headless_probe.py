@@ -95,7 +95,7 @@ class HeadlessProbeSkill(Skill):
         try:
             # Navigate to the target URL
             logger.info(f"Navigating to {url}")
-            await page.goto(url, wait_until="networkidle", timeout=30000)
+            await page.goto(url, wait_until="commit", timeout=60000)
 
             # Wait for hydration to complete
             await asyncio.sleep(2)
@@ -389,3 +389,4 @@ class HeadlessProbeSkill(Skill):
             logger.debug(f"Could not fetch price from API: {e}")
 
         return None
+

@@ -25,10 +25,11 @@ def temp_store():
         tmp_path = tmp.name
 
     store = Store(tmp_path)
-    yield store
-
-    # Cleanup
-    Path(tmp_path).unlink(missing_ok=True)
+    try:
+        yield store
+    finally:
+        store.db.close()
+        Path(tmp_path).unlink(missing_ok=True)
 
 
 class TestStoreInitialization:
