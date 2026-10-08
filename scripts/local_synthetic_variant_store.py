@@ -1,14 +1,18 @@
-"""Standalone local synthetic Shopify storefront server for Phase 2 Variant Logic audits."""
+"""Stateful local synthetic Shopify storefront server for Phase 2 Variant Logic audits."""
 
 import json
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import parse_qs
 
 MODE = sys.argv[1] if len(sys.argv) > 1 else "pass"
 PORT = int(sys.argv[2]) if len(sys.argv) > 2 else 9880
 
+# Server-side stateful cart state per mode/session
+CART_STATE = {"items": []}
 
-class VariantSyntheticStorefront(BaseHTTPRequestHandler):
+
+class StatefulVariantStorefront(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         pass
 
@@ -21,8 +25,7 @@ class VariantSyntheticStorefront(BaseHTTPRequestHandler):
         self.wfile.write(encoded)
 
     def do_GET(self):
-        if self.path == "/products/item.js" or self.path == "/products/item.json":
-            # Official Ajax Product JS API response
+        if self.path.endswith("products/item.js") or self.path.endswith("products/item.json"):
             product_data = {
                 "id": 9991,
                 "title": "Variant Test Shirt",
@@ -52,11 +55,10 @@ class VariantSyntheticStorefront(BaseHTTPRequestHandler):
 
         elif self.path.startswith("/products/item"):
             if MODE == "identity_fail":
-                # Form sends stale ID 1001 when Large / Blue (1002) is chosen
                 body = """<!doctype html><html><body>
                   <form action="/cart/add" method="post">
                     <input type="hidden" name="id" value="1001">
-                    <button type="button" class="swatch" data-option-value="Large / Blue">Large / Blue</button>
+                    <button type="button" class="swatch" data-option-value="Large / Blue" onclick="document.querySelector('input[name=id]').value='1001'">Large / Blue</button>
                     <span class="price">$25.00</span>
                     <img class="product-single__photo" src="http://127.0.0.1/products/shirt-blue.jpg" />
                     <button type="submit" name="add">ADD TO CART</button>
@@ -69,7 +71,6 @@ class VariantSyntheticStorefront(BaseHTTPRequestHandler):
                   </script></body></html>"""
 
             elif MODE == "price_fail":
-                # Stale price $20.00 displayed when Large / Blue ($25.00 expected) chosen
                 body = """<!doctype html><html><body>
                   <form action="/cart/add" method="post">
                     <input type="hidden" name="id" value="1002">
@@ -86,7 +87,6 @@ class VariantSyntheticStorefront(BaseHTTPRequestHandler):
                   </script></body></html>"""
 
             elif MODE == "image_fail":
-                # Stale shirt-red.jpg image displayed when Large / Blue (shirt-blue.jpg expected) chosen
                 body = """<!doctype html><html><body>
                   <form action="/cart/add" method="post">
                     <input type="hidden" name="id" value="1002">
@@ -103,7 +103,6 @@ class VariantSyntheticStorefront(BaseHTTPRequestHandler):
                   </script></body></html>"""
 
             elif MODE == "availability_fail":
-                # Variant 1002 is Sold Out in JSON, but button remains enabled ADD TO CART
                 body = """<!doctype html><html><body>
                   <form action="/cart/add" method="post">
                     <input type="hidden" name="id" value="1002">
@@ -119,7 +118,7 @@ class VariantSyntheticStorefront(BaseHTTPRequestHandler):
                   };
                   </script></body></html>"""
 
-            else: # PASS mode
+            else:  # PASS mode
                 body = """<!doctype html><html><body>
                   <form action="/cart/add" method="post">
                     <input type="hidden" name="id" value="1002">
@@ -137,26 +136,41 @@ class VariantSyntheticStorefront(BaseHTTPRequestHandler):
 
             self.reply(200, body)
 
-        elif self.path == "/cart.js":
-            if MODE == "identity_fail":
-                self.reply(200, json.dumps({
-                    "item_count": 1,
-                    "items": [{"variant_id": 1001, "id": 1001, "quantity": 1}]
-                }), "application/json")
-            else:
-                self.reply(200, json.dumps({
-                    "item_count": 1,
-                    "items": [{"variant_id": 1002, "id": 1002, "quantity": 1}]
-                }), "application/json")
+        elif self.path.endswith("cart.js"):
+            # Return stateful cart items
+            total_qty = sum(item.get("quantity", 0) for item in CART_STATE["items"])
+            self.reply(200, json.dumps({
+                "item_count": total_qty,
+                "items": CART_STATE["items"]
+            }), "application/json")
 
         else:
             self.reply(404, "not found", "text/plain")
 
     def do_POST(self):
-        self.reply(200, "{}", "application/json")
+        if self.path.endswith("cart/add.js") or self.path.endswith("cart/add"):
+            content_length = int(self.headers.get("Content-Length", 0))
+            post_data = self.rfile.read(content_length).decode("utf-8")
+            parsed_form = parse_qs(post_data)
+            added_id = parsed_form.get("id", ["1002"])[0]
+            if added_id.isdigit():
+                vid = int(added_id)
+                # Update stateful cart
+                found = False
+                for item in CART_STATE["items"]:
+                    if item.get("variant_id") == vid:
+                        item["quantity"] += 1
+                        found = True
+                        break
+                if not found:
+                    CART_STATE["items"].append({"variant_id": vid, "id": vid, "quantity": 1})
+
+            self.reply(200, json.dumps({"status": "added", "items": CART_STATE["items"]}), "application/json")
+        else:
+            self.reply(200, "{}", "application/json")
 
 
 if __name__ == "__main__":
-    server = ThreadingHTTPServer(("127.0.0.1", PORT), VariantSyntheticStorefront)
-    print(f"Variant Storefront running on port {PORT} in mode {MODE}", flush=True)
+    server = ThreadingHTTPServer(("127.0.0.1", PORT), StatefulVariantStorefront)
+    print(f"Stateful Variant Storefront running on port {PORT} in mode {MODE}", flush=True)
     server.serve_forever()

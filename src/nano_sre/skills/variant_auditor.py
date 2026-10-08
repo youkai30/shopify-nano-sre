@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional
 from urllib.parse import parse_qs, urljoin, urlparse
 
 from nano_sre.agent.core import Skill, SkillResult
+from nano_sre.skills.shopify_shopper import _cart_root
 
 logger = logging.getLogger(__name__)
 
@@ -103,8 +104,16 @@ class ShopifyVariantAuditor(Skill):
             target_image = target_variant.get("featured_image")
             target_image_src = target_image.get("src") if isinstance(target_image, dict) else None
 
-            # 5. Select target variant via UI swatches/selects
-            await _select_variant_options(page, target_title)
+            # 5. Select target variant via structured form controls/swatches
+            option_selected = await _select_variant_options(page, offer_form, target_title)
+            if not option_selected:
+                return SkillResult(
+                    skill_name=self.name(),
+                    status="WARN",
+                    summary=f"Could not select variant UI options for '{target_title}'",
+                    details={"steps": steps, "reason_code": "option_selection_failed"},
+                )
+
             await _wait_for_dom_stabilization(page)
             steps.append(f"Selected variant UI: {target_title} (ID: {target_variant_id})")
 
@@ -202,25 +211,27 @@ async def _fetch_product_js(page, base_url: str) -> Optional[Dict[str, Any]]:
     return None
 
 
-async def _select_variant_options(page, target_title: str) -> bool:
-    """Select target variant options using UI swatches or dropdowns."""
+async def _select_variant_options(page, offer_form, target_title: str) -> bool:
+    """Select target variant options using structured form controls or swatches."""
     try:
         parts = [p.strip() for p in target_title.split("/") if p.strip()]
+        selected_any = False
         for option_value in parts:
-            # 1. Swatch or radio button
-            swatch = page.locator(
+            # 1. Structured Form Radio inputs or Option buttons inside form
+            swatch = offer_form.locator(
                 f'input[type="radio"][value="{option_value}" i]:visible, '
+                f'button[data-option-value="{option_value}"]:visible, '
                 f'button:has-text("{option_value}"):visible, '
-                f'label:has-text("{option_value}"):visible, '
-                f'[data-option-value="{option_value}"]:visible'
+                f'label:has-text("{option_value}"):visible'
             ).first
             if await swatch.count() > 0:
                 await swatch.click(timeout=5000)
                 await asyncio.sleep(0.5)
+                selected_any = True
                 continue
 
-            # 2. Select element
-            selects = page.locator("select:visible")
+            # 2. Select dropdowns inside form
+            selects = offer_form.locator("select:visible")
             count = await selects.count()
             for i in range(count):
                 sel = selects.nth(i)
@@ -228,33 +239,41 @@ async def _select_variant_options(page, target_title: str) -> bool:
                 if option_value.lower() in opts_text.lower():
                     await sel.select_option(label=option_value)
                     await asyncio.sleep(0.5)
+                    selected_any = True
                     break
-        return True
+        return selected_any
     except Exception as exc:
         logger.debug("Option selection failed: %s", type(exc).__name__)
         return False
 
 
 async def _wait_for_dom_stabilization(page, timeout_ms: int = 3000):
-    """Wait briefly for DOM updates to stabilize."""
-    await asyncio.sleep(timeout_ms / 1000.0)
+    """Wait for DOM updates to stabilize using state-based polling where possible."""
+    try:
+        await page.wait_for_load_state("networkidle", timeout=timeout_ms)
+    except Exception:
+        await asyncio.sleep(1)
 
 
-async def _get_cart_snapshot(page) -> Dict[int, int]:
-    """Get mapping of variant_id -> quantity from /cart.js."""
+async def _get_cart_snapshot(page) -> Optional[Dict[int, int]]:
+    """Get mapping of variant_id -> quantity from /{locale}/cart.js using safe absolute URL."""
     counts: Dict[int, int] = {}
     try:
-        resp = await page.request.get("/cart.js", timeout=10000)
+        root = await _cart_root(page)
+        cart_url = root + "cart.js"
+        resp = await page.request.get(cart_url, timeout=10000)
         if resp.ok:
             data = await resp.json()
-            for item in data.get("items", []):
-                vid = item.get("variant_id") or item.get("id")
-                qty = item.get("quantity", 0)
-                if isinstance(vid, int) and isinstance(qty, int):
-                    counts[vid] = counts.get(vid, 0) + qty
-    except Exception:
-        pass
-    return counts
+            if isinstance(data, dict) and isinstance(data.get("items"), list):
+                for item in data.get("items", []):
+                    vid = item.get("variant_id") or item.get("id")
+                    qty = item.get("quantity", 0)
+                    if isinstance(vid, int) and isinstance(qty, int):
+                        counts[vid] = counts.get(vid, 0) + qty
+                return counts
+    except Exception as exc:
+        logger.debug("Failed getting cart snapshot: %s", type(exc).__name__)
+    return None
 
 
 async def _audit_identity(
@@ -263,6 +282,13 @@ async def _audit_identity(
     """Audit A: Variant Identity verification with pre/post cart snapshots and request attribution."""
     # Pre-add cart snapshot
     pre_cart = await _get_cart_snapshot(page)
+    if pre_cart is None:
+        return {
+            "status": "WARN",
+            "reason_code": "pre_cart_read_failed",
+            "expected_variant_id": target_variant_id,
+            "summary": "Could not read pre-add cart state from cart.js",
+        }
 
     # Read form hidden id
     form_variant_id = None
@@ -289,6 +315,13 @@ async def _audit_identity(
 
     # Post-add cart snapshot
     post_cart = await _get_cart_snapshot(page)
+    if post_cart is None:
+        return {
+            "status": "WARN",
+            "reason_code": "post_cart_read_failed",
+            "expected_variant_id": target_variant_id,
+            "summary": "Could not read post-add cart state from cart.js",
+        }
 
     # Intercepted request payload ID
     sent_variant_id = None
@@ -335,11 +368,30 @@ async def _audit_identity(
                 "summary": f"Expected variant {target_variant_id} to be added, but wrong variant {vid} was added to cart",
             }
 
-    if target_added or (sent_variant_id == target_variant_id and (target_variant_id in post_cart or not post_cart)):
+    # STRICT ATTRIBUTION: Require actual quantity increase for PASS
+    if target_added and sent_variant_id == target_variant_id:
         return {
             "status": "PASS",
             "expected_variant_id": target_variant_id,
-            "summary": f"Variant {target_variant_id} identity verified in request and cart state",
+            "summary": f"Variant {target_variant_id} identity verified in request and cart delta (+{post_qty - pre_qty})",
+        }
+
+    # Pre-existing variant without quantity increase -> WARN (not PASS)
+    if sent_variant_id == target_variant_id and post_qty <= pre_qty and pre_qty > 0:
+        return {
+            "status": "WARN",
+            "reason_code": "pre_existing_variant_no_quantity_increase",
+            "expected_variant_id": target_variant_id,
+            "summary": f"Variant {target_variant_id} sent in payload but cart quantity did not increase (pre: {pre_qty}, post: {post_qty})",
+        }
+
+    # Empty cart or add request failed -> WARN (not PASS)
+    if post_qty == 0:
+        return {
+            "status": "WARN",
+            "reason_code": "cart_remained_empty_after_add",
+            "expected_variant_id": target_variant_id,
+            "summary": f"Add to cart payload was sent for variant {target_variant_id} but cart remained empty",
         }
 
     return {
@@ -364,12 +416,15 @@ async def _audit_price(page, target_price_cents: Optional[int], product_json: Di
         observed_prices: List[int] = []
         for i in range(min(count, 10)):
             txt = await price_locators.nth(i).inner_text()
-            digits = re.sub(r"[^\d]", "", txt)
-            if digits and digits.isdigit():
-                observed_prices.append(int(digits))
+            # Precise currency extraction: match $XX.YY or XX.YY as well as whole dollar $XX or XX USD
+            money_match = re.search(r"\b(\d+)(?:[.,](\d{2}))?\b", txt)
+            if money_match:
+                dollars = int(money_match.group(1))
+                cents_part = int(money_match.group(2)) if money_match.group(2) else 0
+                cents = dollars * 100 + cents_part
+                observed_prices.append(cents)
 
-        target_dollars = int(target_price_cents / 100)
-        if any(p == target_price_cents or p == target_dollars for p in observed_prices):
+        if target_price_cents in observed_prices:
             return {
                 "status": "PASS",
                 "expected_price_cents": target_price_cents,
@@ -380,24 +435,23 @@ async def _audit_price(page, target_price_cents: Optional[int], product_json: Di
         # Check for stale price match from another variant
         for v in product_json.get("variants", []):
             v_price = v.get("price")
-            if v_price and v_price != target_price_cents and (v_price in observed_prices or int(v_price / 100) in observed_prices):
+            if v_price and v_price != target_price_cents and v_price in observed_prices:
                 return {
                     "status": "FAIL",
                     "reason_code": "stale_variant_price",
                     "expected_price_cents": target_price_cents,
                     "observed_prices": observed_prices,
-                    "summary": f"PDP displayed stale price from previous variant instead of {target_price_cents} cents",
+                    "summary": f"PDP displayed stale price ({v_price} cents) from previous variant instead of {target_price_cents} cents",
                 }
 
-        if not observed_prices:
-            return {"status": "WARN", "reason_code": "price_unconfirmed", "summary": "Could not confirm PDP price update"}
-
-        return {
-            "status": "PASS",
-            "expected_price_cents": target_price_cents,
-            "observed_prices": observed_prices,
-            "summary": f"Variant price confirmed",
-        }
+        if observed_prices:
+            return {
+                "status": "FAIL",
+                "reason_code": "variant_price_mismatch",
+                "expected_price_cents": target_price_cents,
+                "observed_prices": observed_prices,
+                "summary": f"PDP displayed price {observed_prices} which did not match expected {target_price_cents} cents",
+            }
     except Exception as exc:
         logger.debug("Price audit failed: %s", type(exc).__name__)
 
@@ -448,17 +502,17 @@ async def _audit_image(page, target_image_src: Optional[str], product_json: Dict
                             "summary": f"PDP main image did not update to target variant image {clean_target_filename}",
                         }
 
-        if clean_target_name_in(clean_target_filename, current_src, srcset):
             return {
-                "status": "PASS",
+                "status": "WARN",
+                "reason_code": "image_mismatch_unconfirmed",
                 "expected_image": clean_target_filename,
-                "summary": "PDP updated main image to target variant image",
+                "summary": f"PDP main image did not display expected target variant image {clean_target_filename}",
             }
 
         return {
-            "status": "PASS",
-            "expected_image": clean_target_filename,
-            "summary": "Variant image verified",
+            "status": "WARN",
+            "reason_code": "image_unrendered",
+            "summary": f"PDP main image element was unrendered or missing for variant {clean_target_filename}",
         }
     except Exception as exc:
         logger.debug("Image audit failed: %s", type(exc).__name__)
@@ -487,7 +541,7 @@ async def _audit_availability_path(page, offer_form, variants: List[Dict[str, An
     try:
         # Select sold out variant in UI
         sold_out_title = sold_out_variant.get("title", "")
-        await _select_variant_options(page, sold_out_title)
+        await _select_variant_options(page, offer_form, sold_out_title)
         await _wait_for_dom_stabilization(page)
 
         # Inspect button state WITHOUT clicking
@@ -501,7 +555,7 @@ async def _audit_availability_path(page, offer_form, variants: List[Dict[str, An
             is_aria_disabled = (await atc_button.get_attribute("aria-disabled")) == "true"
 
             # Check if sold out variant displays enabled Add to Cart button
-            if is_enabled and not is_aria_disabled and ("ADD TO" in btn_text or "شراء" in btn_text or "AJOUTER" in btn_text):
+            if is_enabled and not is_aria_disabled and not ("SOLD" in btn_text or "غير متوفر" in btn_text or "EPUISÉ" in btn_text or "OUT OF" in btn_text):
                 return {
                     "status": "FAIL",
                     "reason_code": "sold_out_variant_enabled",

@@ -12,6 +12,7 @@ from nano_sre.skills.variant_auditor import ShopifyVariantAuditor
 
 class DummyVariantServer(BaseHTTPRequestHandler):
     mode = "pass"
+    cart_items = []
 
     def log_message(self, *_args):
         pass
@@ -25,7 +26,7 @@ class DummyVariantServer(BaseHTTPRequestHandler):
         self.wfile.write(encoded)
 
     def do_GET(self):
-        if self.path == "/products/item.js":
+        if self.path.endswith("products/item.js"):
             data = {
                 "id": 1,
                 "title": "Test Product",
@@ -35,8 +36,8 @@ class DummyVariantServer(BaseHTTPRequestHandler):
                 ],
                 "variants": [
                     {"id": 101, "title": "Red", "price": 1000, "available": True, "featured_image": {"id": 10, "src": "http://127.0.0.1/products/red.jpg"}},
-                        {"id": 102, "title": "Blue", "price": 1500, "available": True, "featured_image": {"id": 20, "src": "http://127.0.0.1/products/blue.jpg"}},
-                        {"id": 103, "title": "Green", "price": 1500, "available": False if self.mode in ("pass", "avail_fail") else True, "featured_image": {"id": 20, "src": "http://127.0.0.1/products/blue.jpg"}}
+                    {"id": 102, "title": "Blue", "price": 1500, "available": True, "featured_image": {"id": 20, "src": "http://127.0.0.1/products/blue.jpg"}},
+                    {"id": 103, "title": "Green", "price": 1500, "available": False if self.mode in ("pass", "avail_fail") else True, "featured_image": {"id": 20, "src": "http://127.0.0.1/products/blue.jpg"}}
                 ]
             }
             self.reply(200, json.dumps(data), "application/json")
@@ -72,14 +73,22 @@ class DummyVariantServer(BaseHTTPRequestHandler):
               }};
               </script></body></html>"""
             self.reply(200, body)
-        elif self.path == "/cart.js":
-            v_id = 101 if self.mode == "identity_fail" else 102
-            self.reply(200, json.dumps({"item_count": 1, "items": [{"variant_id": v_id, "id": v_id, "quantity": 1}]}), "application/json")
+        elif self.path.endswith("cart.js"):
+            if self.mode == "empty_cart_fail":
+                self.reply(200, json.dumps({"item_count": 0, "items": []}), "application/json")
+            else:
+                items = self.cart_items
+                self.reply(200, json.dumps({"item_count": len(items), "items": items}), "application/json")
         else:
             self.reply(404, "missing", "text/plain")
 
     def do_POST(self):
-        self.reply(200, "{}", "application/json")
+        if self.path.endswith("cart/add.js") or self.path.endswith("cart/add"):
+            v_id = 101 if self.mode == "identity_fail" else 102
+            self.cart_items.append({"variant_id": v_id, "id": v_id, "quantity": 1})
+            self.reply(200, json.dumps({"status": "added"}), "application/json")
+        else:
+            self.reply(200, "{}", "application/json")
 
 
 @pytest.mark.integration
@@ -87,6 +96,7 @@ class DummyVariantServer(BaseHTTPRequestHandler):
 async def test_variant_auditor_pass_scenario():
     server = ThreadingHTTPServer(("127.0.0.1", 0), DummyVariantServer)
     server.RequestHandlerClass.mode = "pass"
+    server.RequestHandlerClass.cart_items = []
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
@@ -114,6 +124,7 @@ async def test_variant_auditor_pass_scenario():
 async def test_variant_auditor_identity_fail_scenario():
     server = ThreadingHTTPServer(("127.0.0.1", 0), DummyVariantServer)
     server.RequestHandlerClass.mode = "identity_fail"
+    server.RequestHandlerClass.cart_items = []
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
@@ -139,6 +150,7 @@ async def test_variant_auditor_identity_fail_scenario():
 async def test_variant_auditor_price_fail_scenario():
     server = ThreadingHTTPServer(("127.0.0.1", 0), DummyVariantServer)
     server.RequestHandlerClass.mode = "price_fail"
+    server.RequestHandlerClass.cart_items = []
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
@@ -164,6 +176,7 @@ async def test_variant_auditor_price_fail_scenario():
 async def test_variant_auditor_image_fail_scenario():
     server = ThreadingHTTPServer(("127.0.0.1", 0), DummyVariantServer)
     server.RequestHandlerClass.mode = "image_fail"
+    server.RequestHandlerClass.cart_items = []
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
@@ -189,6 +202,7 @@ async def test_variant_auditor_image_fail_scenario():
 async def test_variant_auditor_availability_fail_scenario():
     server = ThreadingHTTPServer(("127.0.0.1", 0), DummyVariantServer)
     server.RequestHandlerClass.mode = "avail_fail"
+    server.RequestHandlerClass.cart_items = []
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
