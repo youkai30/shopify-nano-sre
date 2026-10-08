@@ -1,0 +1,15 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.13, pytest-9.1.1, pluggy-1.6.0 -- /home/jules/.pyenv/versions/3.12.13/bin/python3
+cachedir: .pytest_cache
+rootdir: /app
+configfile: pyproject.toml
+plugins: platformdirs-4.12.3, base-url-2.1.0, playwright-0.9.0, cov-7.1.0, anyio-4.15.1, asyncio-1.4.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 4 items
+
+tests/test_cart_browser_integration.py::test_real_browser_cart_journey_and_shared_session[valid-nonempty-auto_open_drawer] PASSED [ 25%]
+tests/test_cart_browser_integration.py::test_real_browser_cart_journey_and_shared_session[http_error-failed-auto_open_drawer] PASSED [ 50%]
+tests/test_cart_browser_integration.py::test_real_browser_cart_journey_and_shared_session[api_only-nonempty-api_only_fallback] PASSED [ 75%]
+tests/test_cli_local_fixture_integration.py::test_cli_audit_runs_real_browser_shopper_and_writes_sanitized_reports PASSED [100%]
+
+========================= 4 passed in 64.43s (0:01:04) =========================
