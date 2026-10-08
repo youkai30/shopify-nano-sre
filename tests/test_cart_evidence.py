@@ -97,8 +97,8 @@ def test_cart_payload_rejects_nested_identifier_and_text_fields(field, value):
 @pytest.mark.asyncio
 async def test_collector_uses_locale_root_once_and_disposes_response():
     response = Response({"item_count": 5, "items": [
-        {"key": "a", "variant_id": 7, "quantity": 2},
-        {"key": "b", "variant_id": 7, "quantity": 3},
+        {"key": "a", "variant_id": 7, "product_id": 9, "quantity": 2},
+        {"key": "b", "variant_id": 7, "product_id": 9, "quantity": 3},
     ]})
     page = Page(response)
     evidence, meta = [], _empty_cart_meta()
@@ -126,10 +126,85 @@ async def test_cart_root_rejects_cross_origin_and_traversal():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("root", ["/fr/%2e%2e/", "/fr/%2E%2E/", "/fr\\..\\evil/", "/fr/%5c..%5c/"])
+@pytest.mark.parametrize("root", [
+    "/fr/%2e%2e/", "/fr/%2E%2E/", "/fr\\..\\evil/", "/fr/%5c..%5c/", "/fr/%252e%252e/", "/fr/%0a/", "/fr/%0d/"
+])
 async def test_cart_root_rejects_encoded_and_backslash_traversal(root):
     with pytest.raises(ValueError):
         await _cart_root(Page(Response({}), root))
+
+
+@pytest.mark.asyncio
+async def test_cart_root_rejects_control_characters_and_invalid_types():
+    # Control characters in raw root
+    with pytest.raises(ValueError):
+        await _cart_root(Page(Response({}), "/fr/\n/"))
+    with pytest.raises(ValueError):
+        await _cart_root(Page(Response({}), "/fr/\r/"))
+
+    # Invalid non-string types when candidate is present
+    with pytest.raises(ValueError):
+        await _cart_root(Page(Response({}), 12345))
+    with pytest.raises(ValueError):
+        await _cart_root(Page(Response({}), ["/fr/"]))
+
+
+@pytest.mark.asyncio
+async def test_cart_root_allows_safe_encoded_paths_and_rejects_different_origin():
+    # Safe path without traversal
+    valid_root = await _cart_root(Page(Response({}), "/fr/cart/"))
+    assert valid_root == "https://shop.example/fr/cart/"
+
+    # Safe encoded path without traversal
+    valid_encoded = await _cart_root(Page(Response({}), "/%66%72/"))
+    assert valid_encoded == "https://shop.example/fr/"
+
+    # Triple encoding traversal rejected
+    with pytest.raises(ValueError):
+        await _cart_root(Page(Response({}), "/fr/%2525252e%2525252e/"))
+
+    # Different origin rejected
+    with pytest.raises(ValueError):
+        await _cart_root(Page(Response({}), "https://other-domain.com/cart/"))
+
+
+@pytest.mark.parametrize("field, value", [
+    ("variant_id", None), ("variant_id", "12345"), ("variant_id", 0), ("variant_id", -1), ("variant_id", 12.34),
+    ("product_id", None), ("product_id", "12345"), ("product_id", 0), ("product_id", -1), ("product_id", 12.34),
+    ("selling_plan_id", "12345"), ("selling_plan_id", 0), ("selling_plan_id", -1), ("selling_plan_id", 12.34),
+    ("product_title", 123), ("variant_title", 456), ("handle", 789), ("key", 101112),
+])
+def test_cart_payload_rejects_invalid_field_types_and_non_positive_ids(field, value):
+    item = {"key": "line", "variant_id": 7, "product_id": 9,
+            "product_title": "Tea", "variant_title": "Small", "handle": "tea",
+            "quantity": 1}
+    item[field] = value
+    with pytest.raises(ValueError):
+        _validate_cart_payload({"item_count": 1, "items": [item]})
+
+
+@pytest.mark.asyncio
+async def test_collector_logging_never_leaks_secrets(caplog):
+    secret_marker = "SUPER_SECRET_SESSION_TOKEN_12345"
+
+    class SecretException(Exception):
+        def __str__(self):
+            return secret_marker
+
+    page = Page(Response({}))
+
+    async def throw_secret(*_args, **_kwargs):
+        raise SecretException("secret error")
+
+    page.request.get = throw_secret
+    evidence, meta = [], _empty_cart_meta()
+
+    with caplog.at_level("DEBUG"):
+        await _CartEvidenceCollector(evidence, meta).collect(page, "api_only_fallback")
+
+    assert secret_marker not in caplog.text
+    assert secret_marker not in str(meta)
+    assert meta["error_code"] == "request_error"
 
 
 @pytest.mark.parametrize("status, payload, timeout", [

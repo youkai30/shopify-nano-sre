@@ -416,13 +416,18 @@ class ShopifyShopper(Skill):
             await asyncio.sleep(2)
             cart_dialog = page.locator('[role="dialog"][aria-modal="true"]:visible').first
             if await cart_dialog.count() > 0:
-                cart_verified = True
                 steps.append("Cart drawer detected")
                 item_count = await _drawer_item_count(page, cart_dialog)
                 await cart_collector.collect(page, "auto_open_drawer")
+                if item_count is not None and item_count > 0:
+                    cart_verified = True
 
-            if not cart_verified:
-                open_cart = page.locator('button[aria-label*="Open cart" i]:visible').first
+            if not cart_verified and not cart_collector.attempted:
+                open_cart = page.locator(
+                    'button[aria-label*="cart" i]:visible, '
+                    'a[aria-label*="cart" i]:visible, '
+                    'button[aria-label*="Open cart" i]:visible'
+                ).first
                 if await open_cart.count() > 0:
                     try:
                         await open_cart.click(timeout=10000)
@@ -431,18 +436,28 @@ class ShopifyShopper(Skill):
                             '[role="dialog"][aria-modal="true"]:visible'
                         ).first
                         if await cart_dialog.count() > 0:
-                            cart_verified = True
                             steps.append("Opened cart drawer")
                             item_count = await _drawer_item_count(page, cart_dialog)
                             await cart_collector.collect(page, "shopper_opened_drawer")
+                            if item_count is not None and item_count > 0:
+                                cart_verified = True
                     except Exception as open_cart_error:
                         logger.debug("Could not open cart drawer: %s", type(open_cart_error).__name__)
+
+            # If cart drawer was detected automatically or opened, but item_count couldn't be parsed from drawer text,
+            # try fallback reading from opener aria-label or drawer aria-label before giving up.
+            if not cart_verified and cart_dialog is not None and await cart_dialog.count() > 0:
+                item_count = await _drawer_item_count(page, cart_dialog)
+                if item_count is not None and item_count > 0:
+                    cart_verified = True
+                    if not cart_collector.attempted:
+                        await cart_collector.collect(page, "auto_open_drawer")
 
             # 5C is a single API-only fallback if no drawer path attempted it.
             if not cart_collector.attempted:
                 await cart_collector.collect(page, "api_only_fallback")
-            if (cart_evidence_meta["status"] in ("empty", "nonempty")
-                    and cart_evidence_meta.get("trigger") != "auto_open_drawer"):
+            if (not cart_verified and cart_evidence_meta["status"] in ("empty", "nonempty")
+                    and cart_evidence_meta.get("trigger") == "api_only_fallback"):
                 api_count = cart_evidence_meta.get("api_total_quantity")
                 if api_count is not None:
                     item_count = api_count
@@ -511,8 +526,9 @@ class ShopifyShopper(Skill):
                 except Exception as cart_page_error:
                     logger.debug(
                         "Could not visit traditional cart page: %s",
-                        cart_page_error,
+                        type(cart_page_error).__name__,
                     )
+                    raise cart_page_error
 
             # Checkout button missing.
             if await checkout_button.count() == 0:
@@ -531,7 +547,11 @@ class ShopifyShopper(Skill):
 
             logger.info("Clicking visible checkout button")
 
-            await checkout_button.click(timeout=15000)
+            try:
+                await checkout_button.click(timeout=15000)
+            except Exception as checkout_click_error:
+                logger.debug("Checkout button click failed: %s", type(checkout_click_error).__name__)
+                raise checkout_click_error
 
             await asyncio.sleep(5)
 
@@ -575,7 +595,7 @@ class ShopifyShopper(Skill):
             )
 
         except Exception as e:
-            logger.exception("Shopper journey failed")
+            logger.debug("Shopper journey failed with exception: %s", type(e).__name__)
 
             return SkillResult(
                 skill_name=self.name(),
@@ -590,6 +610,97 @@ class ShopifyShopper(Skill):
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+async def _drawer_item_count(page, drawer_locator) -> int | None:
+    """Read item count structurally from cart drawer UI or aria-labels.
+
+    Returns non-negative int or None when undetermined or ambiguous.
+    """
+    drawer_text_found = False
+
+    try:
+        text = await drawer_locator.inner_text(timeout=3000)
+        lines = [line.strip() for line in text.splitlines() if line.strip()]
+        if lines:
+            drawer_text_found = True
+
+        # 1. Line-by-line Structural Header Search:
+        # Evaluate headers strictly within their line boundaries so subsequent lines do not invalidate valid headers.
+        for line_str in lines:
+            header_match = re.search(
+                r"^(?:CART|YOUR CART|BAG|YOUR BAG)\s*"
+                r"(?:\(\s*(\d+)\s*(?:ITEMS?|PRODUCTS?)?\s*\)|:\s*(\d+)\b|\s+(\d+)\s+(?:ITEMS?|PRODUCTS?)\b)$",
+                line_str,
+                re.IGNORECASE,
+            )
+            if header_match:
+                for g in header_match.groups():
+                    if g is not None:
+                        return int(g)
+
+        # 2. Standalone item counter line search (e.g., line consists solely of "2 ITEMS" or "0 ITEMS")
+        for line_str in lines:
+            # Skip promotional lines, product description sentences, or threshold lines
+            if re.search(r"\b(?:add|spend|more|free|shipping|get|save|discount|pack|set|box|bundle|of|for|with)\b", line_str, re.IGNORECASE):
+                continue
+
+            item_match = re.search(
+                r"^(\d+)\s+(?:ITEMS?|PRODUCTS?)$",
+                line_str,
+                re.IGNORECASE,
+            )
+            if item_match:
+                return int(item_match.group(1))
+
+    except Exception:
+        logger.debug("Could not read drawer inner_text for item count")
+
+    # Check aria-label on drawer itself or visible opener if inner_text didn't contain an explicit header
+    try:
+        drawer_aria = await drawer_locator.get_attribute("aria-label") or ""
+        aria_match = re.search(
+            r"(?<![-\d.,a-zA-Z])(\d+)\s*(?:items?|products?)\b(?!\s*(?:[A-Z]{3}|[\$£€]|[a-zA-Z\d.,]))",
+            drawer_aria,
+            re.IGNORECASE,
+        )
+        if aria_match:
+            return int(aria_match.group(1))
+
+        # Check opener button aria-label if drawer inner_text was completely unreadable or contained no valid counter
+        if not drawer_text_found:
+            opener = page.locator('button[aria-label*="cart" i]:visible, a[aria-label*="cart" i]:visible').first
+            if await opener.count() > 0:
+                aria = await opener.get_attribute("aria-label") or ""
+                aria_match = re.search(
+                    r"(?<![-\d.,a-zA-Z])(\d+)\s*(?:items?|products?)\b(?!\s*(?:[A-Z]{3}|[\$£€]|[a-zA-Z\d.,]))",
+                    aria,
+                    re.IGNORECASE,
+                )
+                if aria_match:
+                    return int(aria_match.group(1))
+    except Exception:
+        pass
+
+    try:
+        # 3. Fallback to checking aria-label on VISIBLE opener or drawer ONLY when inner_text is unreadable/unavailable
+        for loc in (
+            page.locator('button[aria-label*="cart" i]:visible, a[aria-label*="cart" i]:visible').first,
+            drawer_locator,
+        ):
+            if await loc.count() > 0:
+                aria = await loc.get_attribute("aria-label") or ""
+                aria_match = re.search(
+                    r"(?<![-\d.,a-zA-Z])(\d+)\s*(?:items?|products?)\b(?!\s*(?:[A-Z]{3}|[\$£€]|[a-zA-Z\d.,]))",
+                    aria,
+                    re.IGNORECASE,
+                )
+                if aria_match:
+                    return int(aria_match.group(1))
+    except Exception:
+        logger.debug("Could not read aria-label for item count")
+
+    return None
 
 
 def _empty_cart_meta() -> dict[str, Any]:
@@ -622,16 +733,45 @@ async def _cart_root(page) -> str:
         )
     except Exception:
         pass
-    if isinstance(candidate, str) and candidate:
-        raw_root = urlparse(candidate)
+    if candidate is not None:
+        if not isinstance(candidate, str) or not candidate:
+            raise ValueError("unsafe_shopify_root")
+
+        # Reject control characters (e.g. \n, \r, \t) in raw string
+        if re.search(r"[\x00-\x1f\x7f]", candidate):
+            raise ValueError("unsafe_shopify_root")
+
+        # Check for backslash or percent-encoded traversal prior to unquoting
+        if "\\" in candidate or r"%5c" in candidate.lower() or r"%5C" in candidate:
+            raise ValueError("unsafe_shopify_root")
+
+        # Perform unquoting up to 3 times to catch double/multi-encoding
+        unquoted = candidate
+        for _ in range(3):
+            prev = unquoted
+            unquoted = unquote(unquoted)
+            if prev == unquoted:
+                break
+
+        # Reject control chars or unallowed whitespace after unquoting
+        if re.search(r"[\x00-\x1f\x7f\s]", unquoted):
+            raise ValueError("unsafe_shopify_root")
+
+        # If percent encoding remains or unquoted string contains traversal/backslash, reject
+        if "%" in unquoted or "\\" in unquoted or "/../" in unquoted or unquoted.endswith("/..") or unquoted.startswith("../"):
+            raise ValueError("unsafe_shopify_root")
+
+        raw_root = urlparse(unquoted)
         if ".." in raw_root.path.split("/"):
             raise ValueError("unsafe_shopify_root")
-        root = urlparse(urljoin(f"{current.scheme}://{current.netloc}/", candidate))
+
+        root = urlparse(urljoin(f"{current.scheme}://{current.netloc}/", unquoted))
         if (root.scheme != current.scheme or root.netloc != current.netloc or root.username
                 or root.password or ".." in root.path.split("/") or root.query or root.fragment
                 or not root.path.endswith("/")):
             raise ValueError("unsafe_shopify_root")
         return f"{root.scheme}://{root.netloc}{root.path}"
+
     parts = [part for part in current.path.split("/") if part]
     locale = parts[0] + "/" if parts and re.fullmatch(r"[a-zA-Z]{2}(?:-[a-zA-Z]{2})?", parts[0]) else ""
     return f"{current.scheme}://{current.netloc}/{locale}"
@@ -651,13 +791,37 @@ def _validate_cart_payload(data: Any) -> tuple[list[dict[str, Any]], int, int]:
         if isinstance(quantity, bool) or not isinstance(quantity, int) or quantity <= 0:
             raise ValueError("invalid_quantity")
         total += quantity
-        line = {key: item.get(key) for key in (
-            "key", "variant_id", "product_id", "product_title", "variant_title", "handle")}
+
+        line: dict[str, Any] = {}
+
+        # Required numeric identifiers: strictly positive int (> 0, rejecting None, bool, float, str, <= 0)
+        for num_id in ("variant_id", "product_id"):
+            val = item.get(num_id)
+            if val is None or isinstance(val, bool) or not isinstance(val, int) or val <= 0:
+                raise ValueError(f"invalid_{num_id}_type")
+            line[num_id] = val
+
+        # Text fields: str or None (strictly rejecting numbers, dicts, lists, bools)
+        for txt_key in ("key", "product_title", "variant_title", "handle"):
+            val = item.get(txt_key)
+            if val is not None:
+                if not isinstance(val, str):
+                    raise ValueError(f"invalid_{txt_key}_type")
+                line[txt_key] = val
+            else:
+                line[txt_key] = None
+
         line["quantity"] = quantity
+
+        # Selling plan ID when present: positive int (> 0, rejecting bool, float, str, <= 0)
         plan = item.get("selling_plan_id")
-        if isinstance(plan, (str, int)) and not isinstance(plan, bool):
+        if plan is not None:
+            if isinstance(plan, bool) or not isinstance(plan, int) or plan <= 0:
+                raise ValueError("invalid_selling_plan_id_type")
             line["selling_plan_id"] = plan
+
         lines.append(line)
+
     if total != item_count:
         raise ValueError("inconsistent_item_count")
     return lines, total, len(lines)
@@ -686,9 +850,9 @@ class _CartEvidenceCollector:
             self.evidence.extend(lines)
             self.meta.update(status="nonempty" if lines else "empty", error_code=None,
                              api_total_quantity=total, api_line_count=line_count, captured_at=_now())
-        except Exception as exc:
-            self.meta["error_code"] = getattr(exc, "code", None) or type(exc).__name__.lower()
-            logger.debug("Cart evidence collection failed (%s)", self.meta["error_code"])
+        except Exception:
+            self.meta["error_code"] = "request_error"
+            logger.debug("Cart evidence collection failed")
         finally:
             if response is not None:
                 try:
