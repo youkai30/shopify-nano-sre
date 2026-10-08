@@ -20,6 +20,7 @@ from nano_sre.skills import (
     PixelAuditor,
     ShopifyDoctorSkill,
     ShopifyShopper,
+    ShopifyVariantAuditor,
     VisualAuditor,
 )
 from nano_sre.utils.llm import is_vision_model
@@ -440,6 +441,7 @@ def _build_skills(settings: Settings, update_baseline: bool) -> dict[str, Skill]
 
     skill_instances: list[Skill] = [
         ShopifyShopper(),
+        ShopifyVariantAuditor(),
         PixelAuditor(mock_mode=False),
         VisualAuditor(
             llm_client={"model": settings.llm_model} if use_vision else None,

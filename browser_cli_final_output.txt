@@ -1,0 +1,13 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.13, pytest-9.1.1, pluggy-1.6.0
+rootdir: /app
+configfile: pyproject.toml
+plugins: platformdirs-4.12.3, base-url-2.1.0, playwright-0.9.0, cov-7.1.0, anyio-4.15.1, asyncio-1.4.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 4 items
+
+tests/test_cart_browser_integration.py ...                               [ 75%]
+tests/test_cli_local_fixture_integration.py .                            [100%]
+
+========================= 4 passed in 64.02s (0:01:04) =========================
+Exit code: 0
