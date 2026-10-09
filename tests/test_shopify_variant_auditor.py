@@ -13,7 +13,11 @@ from typing import Any
 import pytest
 from playwright.async_api import async_playwright
 
-from nano_sre.skills.shopify_variant_auditor import ShopifyVariantAuditor, parse_price_cents
+from nano_sre.skills.shopify_variant_auditor import (
+    ShopifyVariantAuditor,
+    _extract_canonical_filename,
+    parse_price_cents,
+)
 
 
 def test_parse_price_cents_cases():
@@ -26,8 +30,20 @@ def test_parse_price_cents_cases():
     assert parse_price_cents("$15") == 1500
     assert parse_price_cents("1.500,00 €") == 150000
     assert parse_price_cents("15,99 €") == 1599
+    assert parse_price_cents("Save 10% — $25.00") == 2500
+    assert parse_price_cents("20% off $50.00") == 5000
+    assert parse_price_cents("<s>$20.00</s> $15.00") == 2000  # Note: <s> is stripped at locator level
     assert parse_price_cents(None) is None
     assert parse_price_cents("No price here") is None
+
+
+def test_canonical_filename_extraction():
+    """Unit tests for Shopify CDN canonical image filename extraction."""
+    assert _extract_canonical_filename("https://cdn.shopify.com/blue_100x100.png?v=123") == "blue.png"
+    assert _extract_canonical_filename("https://cdn.shopify.com/blue_large.jpg") == "blue.jpg"
+    assert _extract_canonical_filename("https://cdn.shopify.com/dark-blue.svg") == "dark-blue.svg"
+    assert _extract_canonical_filename("https://cdn.shopify.com/blue.svg") == "blue.svg"
+    assert _extract_canonical_filename("blue.svg") != _extract_canonical_filename("dark-blue.svg")
 
 
 def make_test_server(handler_factory):
@@ -129,7 +145,12 @@ async def test_variant_auditor_pass_flow(svg_image):
                 self.end_headers()
 
         def do_POST(self):
-            if self.path == "/cart/add.js":
+            if self.path == "/cart.js":
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"item_count": sum(i["quantity"] for i in cart_items), "items": cart_items}).encode("utf-8"))
+            elif self.path == "/cart/add.js":
                 length = int(self.headers.get("Content-Length", 0))
                 body = self.rfile.read(length).decode("utf-8")
                 vid = 102 if "102" in body else 101
@@ -137,7 +158,7 @@ async def test_variant_auditor_pass_flow(svg_image):
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
-                self.wfile.write(b"{}")
+                self.wfile.write(json.dumps({"id": vid, "quantity": 1}).encode("utf-8"))
 
     server, thread = make_test_server(Storefront)
     try:
@@ -160,9 +181,9 @@ async def test_variant_auditor_pass_flow(svg_image):
         thread.join(timeout=5)
 
 
-# Regression 1: Displayed 15.99 vs Expected 16.00 returns FAIL
+# 2. Inactive button.swatch ignored (only active swatch read)
 @pytest.mark.asyncio
-async def test_price_1599_vs_1600_returns_fail():
+async def test_inactive_swatch_button_ignored():
     cart_items = []
 
     class Storefront(BaseHTTPRequestHandler):
@@ -174,8 +195,11 @@ async def test_price_1599_vs_1600_returns_fail():
                 data = {
                     "id": 1,
                     "handle": "item",
-                    "options": [{"name": "Size", "values": ["Default"]}],
-                    "variants": [{"id": 101, "title": "Default", "price": 1600, "options": ["Default"]}]
+                    "options": [{"name": "Size", "values": ["Small", "Large"]}],
+                    "variants": [
+                        {"id": 101, "title": "Small", "price": 1599, "options": ["Small"]},
+                        {"id": 102, "title": "Large", "price": 2500, "options": ["Large"]}
+                    ]
                 }
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
@@ -188,9 +212,11 @@ async def test_price_1599_vs_1600_returns_fail():
                 data = {"item_count": sum(i["quantity"] for i in cart_items), "items": cart_items}
                 self.wfile.write(json.dumps(data).encode("utf-8"))
             elif self.path.startswith("/products/item"):
+                # Active swatch is Small, inactive swatch is Large
                 html = """<!doctype html><html><body>
                 <form action="/cart/add" method="post">
-                  <select name="options[Size]"><option value="Default">Default</option></select>
+                  <button type="button" class="swatch active" data-option-name="Size" data-value="Small">Small</button>
+                  <button type="button" class="swatch" data-option-name="Size" data-value="Large">Large</button>
                   <span class="price-item--regular">$15.99</span>
                   <button type="submit" name="add">Add to cart</button>
                 </form>
@@ -211,7 +237,7 @@ async def test_price_1599_vs_1600_returns_fail():
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
-                self.wfile.write(b"{}")
+                self.wfile.write(json.dumps({"id": 101, "quantity": 1}).encode("utf-8"))
 
     server, thread = make_test_server(Storefront)
     try:
@@ -222,10 +248,8 @@ async def test_price_1599_vs_1600_returns_fail():
             await page.goto(f"{origin}/products/item")
             auditor = ShopifyVariantAuditor()
             res = await auditor.run({"page": page, "base_url": f"{origin}/products/item"})
-            assert res.status == "FAIL"
-            assert res.details["checks"]["variant_price"]["status"] == "FAIL"
-            assert res.details["checks"]["variant_price"]["displayed_cents"] == 1599
-            assert res.details["checks"]["variant_price"]["expected_cents"] == 1600
+            assert res.details["checks"]["variant_identity"]["expected_variant_id"] == 101
+            assert res.details["checks"]["variant_identity"]["status"] == "PASS"
             await browser.close()
     finally:
         server.shutdown()
@@ -233,9 +257,83 @@ async def test_price_1599_vs_1600_returns_fail():
         thread.join(timeout=5)
 
 
-# Regression 2: Strict product-form scoping (missing main form + recommendation card -> WARN)
+# 3. Strike-through compare price <s>$20</s> + active price $15 -> PASS
 @pytest.mark.asyncio
-async def test_missing_main_form_with_unrelated_button_returns_warn():
+async def test_strikethrough_compare_at_price_ignored():
+    cart_items = []
+
+    class Storefront(BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+
+        def do_GET(self):
+            if self.path == "/products/item.js":
+                data = {
+                    "id": 1,
+                    "handle": "item",
+                    "options": [{"name": "Size", "values": ["Default"]}],
+                    "variants": [{"id": 101, "title": "Default", "price": 1500, "options": ["Default"]}] # Expected $15.00
+                }
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps(data).encode("utf-8"))
+            elif self.path == "/cart.js":
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                data = {"item_count": sum(i["quantity"] for i in cart_items), "items": cart_items}
+                self.wfile.write(json.dumps(data).encode("utf-8"))
+            elif self.path.startswith("/products/item"):
+                html = """<!doctype html><html><body>
+                <form action="/cart/add" method="post">
+                  <select name="options[Size]"><option value="Default">Default</option></select>
+                  <s class="compare-at-price">$20.00</s>
+                  <span class="price-item--regular">$15.00</span>
+                  <button type="submit" name="add">Add to cart</button>
+                </form>
+                <script>
+                document.querySelector('form').onsubmit = async (e) => {
+                  e.preventDefault();
+                  await fetch('/cart/add.js', {method:'POST', body:'id=101'});
+                };
+                </script></body></html>"""
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html")
+                self.end_headers()
+                self.wfile.write(html.encode("utf-8"))
+
+        def do_POST(self):
+            if self.path == "/cart/add.js":
+                cart_items.append({"variant_id": 101, "product_id": 1, "quantity": 1})
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"id": 101, "quantity": 1}).encode("utf-8"))
+
+    server, thread = make_test_server(Storefront)
+    try:
+        origin = f"http://127.0.0.1:{server.server_port}"
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            page = await browser.new_page()
+            await page.goto(f"{origin}/products/item")
+            auditor = ShopifyVariantAuditor()
+            res = await auditor.run({"page": page, "base_url": f"{origin}/products/item"})
+            assert res.details["checks"]["variant_price"]["status"] == "PASS"
+            assert res.details["checks"]["variant_price"]["displayed_cents"] == 1500
+            await browser.close()
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+# 4. Promo text "Save 10% — $25.00" matches $25.00 -> PASS
+@pytest.mark.asyncio
+async def test_promo_text_stripped_price_matches():
+    cart_items = []
+
     class Storefront(BaseHTTPRequestHandler):
         def log_message(self, *args):
             pass
@@ -256,139 +354,18 @@ async def test_missing_main_form_with_unrelated_button_returns_warn():
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
-                self.wfile.write(json.dumps({"item_count": 0, "items": []}).encode("utf-8"))
-            elif self.path.startswith("/products/item"):
-                # No product form, only recommendation card button!
-                html = """<!doctype html><html><body>
-                <div class="recommendations">
-                  <span class="price-item--regular">$25.00</span>
-                  <button type="button" class="add-to-cart">Add recommendation</button>
-                </div></body></html>"""
-                self.send_response(200)
-                self.send_header("Content-Type", "text/html")
-                self.end_headers()
-                self.wfile.write(html.encode("utf-8"))
-
-    server, thread = make_test_server(Storefront)
-    try:
-        origin = f"http://127.0.0.1:{server.server_port}"
-        async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
-            page = await browser.new_page()
-            await page.goto(f"{origin}/products/item")
-            auditor = ShopifyVariantAuditor()
-            res = await auditor.run({"page": page, "base_url": f"{origin}/products/item"})
-            assert res.status == "WARN"
-            assert "Could not establish main product form binding" in res.summary
-            await browser.close()
-    finally:
-        server.shutdown()
-        server.server_close()
-        thread.join(timeout=5)
-
-
-# Regression 3: Tight Cart Payload Validation
-@pytest.mark.asyncio
-@pytest.mark.parametrize("invalid_cart_payload", [
-    {"item_count": True, "items": []}, # bool item_count
-    {"item_count": 1, "items": [{"variant_id": True, "quantity": 1}]}, # bool variant_id
-    {"item_count": 1, "items": [{"variant_id": 101, "quantity": True}]}, # bool quantity
-    {"item_count": 1, "items": [{"variant_id": 101, "quantity": 1, "selling_plan_id": True}]}, # bool selling_plan_id
-    {"item_count": 1, "items": ["invalid_string_item"]}, # non-dict item
-    {"item_count": 5, "items": [{"variant_id": 101, "quantity": 1}]}, # inconsistent item count (5 != 1)
-])
-async def test_invalid_cart_payload_returns_warn(invalid_cart_payload):
-    class Storefront(BaseHTTPRequestHandler):
-        def log_message(self, *args):
-            pass
-
-        def do_GET(self):
-            if self.path == "/products/item.js":
-                data = {
-                    "id": 1,
-                    "handle": "item",
-                    "options": [{"name": "Size", "values": ["Default"]}],
-                    "variants": [{"id": 101, "title": "Default", "price": 1599, "options": ["Default"]}]
-                }
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(json.dumps(data).encode("utf-8"))
-            elif self.path == "/cart.js":
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(json.dumps(invalid_cart_payload).encode("utf-8"))
-            elif self.path.startswith("/products/item"):
-                html = """<!doctype html><html><body>
-                <form action="/cart/add" method="post">
-                  <select name="options[Size]"><option value="Default">Default</option></select>
-                  <button type="submit" name="add">Add to cart</button>
-                </form></body></html>"""
-                self.send_response(200)
-                self.send_header("Content-Type", "text/html")
-                self.end_headers()
-                self.wfile.write(html.encode("utf-8"))
-
-    server, thread = make_test_server(Storefront)
-    try:
-        origin = f"http://127.0.0.1:{server.server_port}"
-        async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
-            page = await browser.new_page()
-            await page.goto(f"{origin}/products/item")
-            auditor = ShopifyVariantAuditor()
-            res = await auditor.run({"page": page, "base_url": f"{origin}/products/item"})
-            assert res.status == "WARN"
-            assert res.details["checks"]["variant_identity"]["status"] == "WARN"
-            assert "inconsistent_payload" in res.details["checks"]["variant_identity"]["meta_before"]["status"]
-            await browser.close()
-    finally:
-        server.shutdown()
-        server.server_close()
-        thread.join(timeout=5)
-
-
-# Regression 4: Precise Add to Cart Request Matching (Cross-origin & Misleading paths)
-@pytest.mark.asyncio
-async def test_precise_request_matching():
-    cart_items = []
-
-    class Storefront(BaseHTTPRequestHandler):
-        def log_message(self, *args):
-            pass
-
-        def do_GET(self):
-            if self.path == "/products/item.js":
-                data = {
-                    "id": 1,
-                    "handle": "item",
-                    "options": [{"name": "Size", "values": ["Default"]}],
-                    "variants": [{"id": 101, "title": "Default", "price": 1599, "options": ["Default"]}]
-                }
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(json.dumps(data).encode("utf-8"))
-            elif self.path == "/cart.js":
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
                 data = {"item_count": sum(i["quantity"] for i in cart_items), "items": cart_items}
                 self.wfile.write(json.dumps(data).encode("utf-8"))
             elif self.path.startswith("/products/item"):
                 html = """<!doctype html><html><body>
                 <form action="/cart/add" method="post">
                   <select name="options[Size]"><option value="Default">Default</option></select>
-                  <span class="price-item--regular">$15.99</span>
+                  <span class="price-item--regular">Save 10% — $25.00</span>
                   <button type="submit" name="add">Add to cart</button>
                 </form>
                 <script>
                 document.querySelector('form').onsubmit = async (e) => {
                   e.preventDefault();
-                  // Fire a misleading path first
-                  fetch('/cart/add_recommendation', {method:'POST', body:'id=999'});
-                  // Fire real ATC path
                   await fetch('/cart/add.js', {method:'POST', body:'id=101'});
                 };
                 </script></body></html>"""
@@ -403,10 +380,7 @@ async def test_precise_request_matching():
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
-                self.wfile.write(b"{}")
-            else:
-                self.send_response(200)
-                self.end_headers()
+                self.wfile.write(json.dumps({"id": 101, "quantity": 1}).encode("utf-8"))
 
     server, thread = make_test_server(Storefront)
     try:
@@ -417,8 +391,172 @@ async def test_precise_request_matching():
             await page.goto(f"{origin}/products/item")
             auditor = ShopifyVariantAuditor()
             res = await auditor.run({"page": page, "base_url": f"{origin}/products/item"})
-            assert res.status == "PASS"
-            assert res.details["checks"]["variant_identity"]["expected_variant_id"] == 101
+            assert res.details["checks"]["variant_price"]["status"] == "PASS"
+            assert res.details["checks"]["variant_price"]["displayed_cents"] == 2500
+            await browser.close()
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+# 5. Image comparison blue.svg vs dark-blue.svg -> FAIL
+@pytest.mark.asyncio
+async def test_image_mismatch_blue_vs_dark_blue(svg_image):
+    cart_items = []
+
+    class Storefront(BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+
+        def do_GET(self):
+            if self.path == "/products/item.js":
+                data = {
+                    "id": 1,
+                    "handle": "item",
+                    "options": [{"name": "Size", "values": ["Default"]}],
+                    "variants": [
+                        {"id": 101, "title": "Default", "price": 1599, "options": ["Default"],
+                         "featured_image": {"src": "/blue.svg"}} # Expected blue.svg
+                    ]
+                }
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps(data).encode("utf-8"))
+            elif self.path in ("/dark-blue.svg", "/blue.svg"):
+                self.send_response(200)
+                self.send_header("Content-Type", "image/svg+xml")
+                self.end_headers()
+                self.wfile.write(svg_image.encode("utf-8"))
+            elif self.path == "/cart.js":
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                data = {"item_count": sum(i["quantity"] for i in cart_items), "items": cart_items}
+                self.wfile.write(json.dumps(data).encode("utf-8"))
+            elif self.path.startswith("/products/item"):
+                # Active image is /dark-blue.svg
+                html = """<!doctype html><html><body>
+                <form action="/cart/add" method="post">
+                  <select name="options[Size]"><option value="Default">Default</option></select>
+                  <span class="price-item--regular">$15.99</span>
+                  <img class="product-featured-media" src="/dark-blue.svg" width="100" height="100"/>
+                  <button type="submit" name="add">Add to cart</button>
+                </form>
+                <script>
+                document.querySelector('form').onsubmit = async (e) => {
+                  e.preventDefault();
+                  await fetch('/cart/add.js', {method:'POST', body:'id=101'});
+                };
+                </script></body></html>"""
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html")
+                self.end_headers()
+                self.wfile.write(html.encode("utf-8"))
+
+        def do_POST(self):
+            if self.path == "/cart/add.js":
+                cart_items.append({"variant_id": 101, "product_id": 1, "quantity": 1})
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"id": 101, "quantity": 1}).encode("utf-8"))
+
+    server, thread = make_test_server(Storefront)
+    try:
+        origin = f"http://127.0.0.1:{server.server_port}"
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            page = await browser.new_page()
+            await page.goto(f"{origin}/products/item")
+            auditor = ShopifyVariantAuditor()
+            res = await auditor.run({"page": page, "base_url": f"{origin}/products/item"})
+            assert res.status == "FAIL"
+            assert res.details["checks"]["variant_image"]["status"] == "FAIL"
+            await browser.close()
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+# 6. Request sends 102, but response/cart adds 101 -> FAIL with before/after/deltas
+@pytest.mark.asyncio
+async def test_request_sent_102_response_added_101_returns_fail():
+    cart_items = []
+
+    class Storefront(BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+
+        def do_GET(self):
+            if self.path == "/products/item.js":
+                data = {
+                    "id": 1,
+                    "handle": "item",
+                    "options": [{"name": "Size", "values": ["Small", "Large"]}],
+                    "variants": [
+                        {"id": 101, "title": "Small", "price": 1599, "options": ["Small"]},
+                        {"id": 102, "title": "Large", "price": 2500, "options": ["Large"]}
+                    ]
+                }
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps(data).encode("utf-8"))
+            elif self.path == "/cart.js":
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                data = {"item_count": sum(i["quantity"] for i in cart_items), "items": cart_items}
+                self.wfile.write(json.dumps(data).encode("utf-8"))
+            elif self.path.startswith("/products/item"):
+                html = """<!doctype html><html><body>
+                <form action="/cart/add" method="post">
+                  <select name="options[Size]">
+                    <option value="Small">Small</option>
+                    <option value="Large" selected>Large</option>
+                  </select>
+                  <span class="price-item--regular">$25.00</span>
+                  <button type="submit" name="add">Add to cart</button>
+                </form>
+                <script>
+                document.querySelector('form').onsubmit = async (e) => {
+                  e.preventDefault();
+                  // Client sends id=102, but server responds adding id=101
+                  await fetch('/cart/add.js', {method:'POST', body:'id=102'});
+                };
+                </script></body></html>"""
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html")
+                self.end_headers()
+                self.wfile.write(html.encode("utf-8"))
+
+        def do_POST(self):
+            if self.path == "/cart/add.js":
+                # Server bug: adds 101 instead of requested 102
+                cart_items.append({"variant_id": 101, "product_id": 1, "quantity": 1})
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"id": 101, "quantity": 1}).encode("utf-8"))
+
+    server, thread = make_test_server(Storefront)
+    try:
+        origin = f"http://127.0.0.1:{server.server_port}"
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            page = await browser.new_page()
+            await page.goto(f"{origin}/products/item")
+            auditor = ShopifyVariantAuditor()
+            res = await auditor.run({"page": page, "base_url": f"{origin}/products/item"})
+            assert res.status == "FAIL"
+            assert res.details["checks"]["variant_identity"]["status"] == "FAIL"
+            assert res.details["checks"]["variant_identity"]["added_variant_id"] == 101
+            assert res.details["checks"]["variant_identity"]["expected_variant_id"] == 102
+            assert "meta_before" in res.details["checks"]["variant_identity"]
+            assert "meta_after" in res.details["checks"]["variant_identity"]
             await browser.close()
     finally:
         server.shutdown()

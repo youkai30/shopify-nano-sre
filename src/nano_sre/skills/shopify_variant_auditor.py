@@ -13,16 +13,41 @@ from nano_sre.agent.core import Skill, SkillResult
 logger = logging.getLogger(__name__)
 
 
+def _extract_canonical_filename(url: str) -> str:
+    """Extract canonical filename from Shopify CDN image URL, removing dimension/size suffixes."""
+    if not url:
+        return ""
+    path = unquote(urlparse(url).path)
+    filename = path.split("/")[-1].split("?")[0]
+    # Remove Shopify CDN size suffixes like _100x100, _large, _300x, _master
+    canonical = re.sub(
+        r"_(?:\d+x\d*|\d*x\d+|small|medium|large|compact|pico|icon|master|1024x1024|2048x2048)(?=\.[a-zA-Z0-9]+$)",
+        "",
+        filename,
+        flags=re.IGNORECASE,
+    )
+    return canonical.lower()
+
+
 def parse_price_cents(text: str) -> Optional[int]:
-    """Parse a price string into exact integer cents using Decimal, avoiding float precision errors."""
+    """Parse a price string into exact integer cents using Decimal, safely ignoring discount callouts."""
     if not text or not isinstance(text, str):
         return None
 
-    match = re.search(r"\d+(?:[.,]\d+)*", text)
+    # Remove discount percentages/callouts like "Save 10%" or "10% off"
+    clean_text = re.sub(r"\b(?:save|off)\s*\d+\s*%", "", text, flags=re.IGNORECASE)
+    clean_text = re.sub(r"\b\d+\s*%\s*(?:save|off)\b", "", clean_text, flags=re.IGNORECASE)
+
+    # Extract price pattern with currency symbol or standard decimal
+    match = re.search(r"(?:[\$£€¥]\s*)?\d+(?:[.,]\d+)*(?:\s*[\$£€¥])?", clean_text)
     if not match:
         return None
 
-    num_str = match.group(0)
+    num_match = re.search(r"\d+(?:[.,]\d+)*", match.group(0))
+    if not num_match:
+        return None
+
+    num_str = num_match.group(0)
 
     if "." in num_str and "," in num_str:
         last_dot = num_str.rfind(".")
@@ -54,6 +79,8 @@ def parse_price_cents(text: str) -> Optional[int]:
 
     try:
         dec = Decimal(clean)
+        if dec < 0:
+            return None
         if "." in clean:
             dec = dec.quantize(Decimal("0.01"))
             cents = int(dec * 100)
@@ -369,9 +396,9 @@ class ShopifyVariantAuditor(Skill):
                 if opt_name.lower() in name_attr or f"option{option_names.index(opt_name)+1}" in name_attr:
                     selected_options[opt_name] = val
 
-        # 3. Active swatches
+        # 3. Active swatches ONLY (MUST have explicit active/selected state!)
         swatches = form_loc.locator(
-            '.swatch.selected, .swatch.active, [data-option-value].active, button.selected, button.active, [aria-checked="true"], [aria-selected="true"], button.swatch'
+            '.swatch.selected, .swatch.active, [data-option-value].active, [data-option-value].selected, button.selected, button.active, [aria-checked="true"], [aria-selected="true"]'
         )
         swatch_count = await swatches.count()
         for i in range(swatch_count):
@@ -467,7 +494,7 @@ class ShopifyVariantAuditor(Skill):
         """Check if PDP pricing context is ambiguous inside main_form."""
         try:
             form_loc = main_form if await main_form.count() > 0 else page
-            price_elems = form_loc.locator('.price:not(.compare-at-price), [data-product-price], .product-single__price')
+            price_elems = form_loc.locator('.price:not(.compare-at-price):not(s *):not(del *), [data-product-price]:not(s *):not(del *), .product-single__price:not(.compare-at-price):not(s *):not(del *)')
             count = await price_elems.count()
             if count > 1:
                 texts = set()
@@ -585,7 +612,7 @@ class ShopifyVariantAuditor(Skill):
         qty_before = sum(item["quantity"] for item in items_before if item["variant_id"] == expected_variant_id)
 
         # Precise network listener matching
-        add_request_data = {"captured": False, "variant_id": None, "quantity": None, "status": None}
+        add_request_data = {"captured": False, "variant_id": None, "quantity": None, "status": None, "res_variant_id": None}
         captured_req_holder = [None]
 
         def on_request(request):
@@ -623,15 +650,23 @@ class ShopifyVariantAuditor(Skill):
             except Exception:
                 pass
 
-        def on_response(response):
+        async def on_response(response):
             if captured_req_holder[0] and response.request == captured_req_holder[0]:
                 add_request_data["status"] = response.status
+                try:
+                    if response.ok and "application/json" in (response.headers.get("content-type") or ""):
+                        res_json = await response.json()
+                        if isinstance(res_json, dict):
+                            r_vid = res_json.get("id") or res_json.get("variant_id")
+                            if _is_valid_int(r_vid):
+                                add_request_data["res_variant_id"] = r_vid
+                except Exception:
+                    pass
 
         page.on("request", on_request)
         page.on("response", on_response)
 
         try:
-            # Strictly locate Buy / Add to Cart button inside main_form (no page-wide fallbacks!)
             if await main_form.count() == 0:
                 return {
                     "status": "WARN",
@@ -654,6 +689,13 @@ class ShopifyVariantAuditor(Skill):
             except Exception as e:
                 logger.debug("Click ATC failed: %s", e)
 
+            if not add_request_data["captured"]:
+                return {
+                    "status": "WARN",
+                    "summary": "Add to Cart network request was not captured resulting from click; variant identity unconfirmed",
+                    "expected_variant_id": expected_variant_id,
+                }
+
             if add_request_data["status"] and add_request_data["status"] >= 400:
                 return {
                     "status": "WARN",
@@ -675,7 +717,7 @@ class ShopifyVariantAuditor(Skill):
             qty_after = sum(item["quantity"] for item in items_after if item["variant_id"] == expected_variant_id)
             delta_quantity = qty_after - qty_before
 
-            added_variant_id = add_request_data.get("variant_id")
+            added_variant_id = add_request_data.get("res_variant_id") or add_request_data.get("variant_id")
 
             if added_variant_id and str(added_variant_id) != str(expected_variant_id):
                 return {
@@ -684,6 +726,8 @@ class ShopifyVariantAuditor(Skill):
                     "expected_variant_id": expected_variant_id,
                     "added_variant_id": added_variant_id,
                     "delta_quantity": delta_quantity,
+                    "meta_before": meta_before,
+                    "meta_after": meta_after,
                 }
 
             if delta_quantity <= 0:
@@ -745,8 +789,9 @@ class ShopifyVariantAuditor(Skill):
                 "summary": "Main product form missing for price verification",
             }
 
+        # Exclude strike-through compare-at prices <s> or <del>
         price_loc = main_form.locator(
-            '.price-item--regular:visible, [data-product-price]:visible, .price:not(.compare-at-price):visible, .product-single__price:visible'
+            '.price-item--regular:not(s *):not(del *):visible, [data-product-price]:not(s *):not(del *):visible, .price:not(.compare-at-price):not(s *):not(del *):visible, .product-single__price:not(.compare-at-price):not(s *):not(del *):visible'
         ).first
 
         if await price_loc.count() == 0:
@@ -804,11 +849,8 @@ class ShopifyVariantAuditor(Skill):
 
         form_loc = main_form if await main_form.count() > 0 else page
         img_loc = form_loc.locator(
-            '.product-single__photo img:visible, [data-product-featured-media] img:visible, img.product-featured-media:visible, section img[src*="cdn.shopify.com"]:visible, img[src*="products"]:visible'
+            '.product-single__photo img:visible, [data-product-featured-media] img:visible, img.product-featured-media:visible, section img[src*="cdn.shopify.com"]:visible, img[src*="products"]:visible, img.featured-image:visible'
         ).first
-
-        if await img_loc.count() == 0:
-            img_loc = page.locator('img[src*="products"]:visible, img.featured-image:visible').first
 
         if await img_loc.count() == 0:
             return {
@@ -841,10 +883,10 @@ class ShopifyVariantAuditor(Skill):
                 "active_src": active_src,
             }
 
-        expected_filename = unquote(urlparse(expected_img_src).path).split("/")[-1].split("?")[0]
-        active_filename = unquote(urlparse(active_src).path).split("/")[-1].split("?")[0]
+        expected_canonical = _extract_canonical_filename(expected_img_src)
+        active_canonical = _extract_canonical_filename(active_src)
 
-        if expected_filename.lower() in active_src.lower() or active_filename.lower() in expected_img_src.lower():
+        if active_canonical == expected_canonical:
             return {
                 "status": "PASS",
                 "summary": f"Active main image is loaded (naturalWidth={natural_width}) and matches variant image",
@@ -854,7 +896,7 @@ class ShopifyVariantAuditor(Skill):
 
         return {
             "status": "FAIL",
-            "summary": "Active main product image does not match expected variant image",
+            "summary": f"Active main product image canonical filename ({active_canonical}) does not match expected variant image ({expected_canonical})",
             "active_src": active_src,
             "expected_src": expected_img_src,
         }
