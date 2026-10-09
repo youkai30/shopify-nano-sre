@@ -124,8 +124,8 @@ class ShopifyPurchaseBlockerAuditor(Skill):
         try:
             # Desktop flow setup preserving session cookies
             try:
-                is_mobile = await page.evaluate("() => matchMedia('(max-width: 767px)').matches || ('ontouchstart' in window)")
-                if is_mobile and hasattr(page, "context") and page.context and hasattr(page.context, "browser") and page.context.browser:
+                is_mobile_viewport = await page.evaluate("() => matchMedia('(max-width: 767px)').matches")
+                if is_mobile_viewport and hasattr(page, "context") and page.context and hasattr(page.context, "browser") and page.context.browser:
                     cookies = await page.context.cookies()
                     created_desktop_context = await page.context.browser.new_context(
                         viewport={"width": 1280, "height": 800},
@@ -431,8 +431,6 @@ class ShopifyPurchaseBlockerAuditor(Skill):
             audit_page.on("request", on_request)
             audit_page.on("response", on_response)
 
-            errors_before_click_count = len(js_errors)
-
             click_success = False
             click_error_msg = None
             handler_exception = False
@@ -478,7 +476,6 @@ class ShopifyPurchaseBlockerAuditor(Skill):
                 "delta_quantity": delta,
             }
 
-            errors_after_click = js_errors[errors_before_click_count:]
             screenshot_path = await self._take_screenshot(audit_page, "atc_result")
 
             # 1. Target variant quantity increased strictly -> PASS
@@ -520,7 +517,7 @@ class ShopifyPurchaseBlockerAuditor(Skill):
                     }),
                 )
 
-            # 3. Request WAS NOT captured AND click/handler error occurred -> FAIL / JS_ERROR
+            # 3. Request WAS NOT captured AND Playwright click invocation itself threw an exception in event handler -> FAIL
             if not add_request_data["captured"]:
                 if handler_exception and click_error_msg:
                     return SkillResult(
@@ -540,26 +537,7 @@ class ShopifyPurchaseBlockerAuditor(Skill):
                         }),
                     )
 
-                if errors_after_click:
-                    # Check that error occurred in direct click/submit execution window
-                    return SkillResult(
-                        skill_name=self.name(),
-                        status="FAIL",
-                        summary=_redact_value("JavaScript error in Add to Cart handler prevented request dispatch"),
-                        details=_redact_value({
-                            "reason_code": "JS_ERROR_BLOCKING_PURCHASE",
-                            "steps": steps + ["JavaScript error in ATC handler prevented request"],
-                            "proven_purchase_conditions": proven_conditions,
-                            "expected": "Clean click execution dispatching Add to Cart request",
-                            "observed": "Direct handler JS error before request",
-                            "timestamp": _now(),
-                            "reproduction_steps": [f"Navigate to {current_url}", "Click Add to Cart"],
-                            "redacted_screenshot": screenshot_path,
-                            "network_cart_evidence": cart_evidence,
-                        }),
-                    )
-
-                # Unproven cause when click succeeded but no request captured (e.g. quiet failure) -> WARN
+                # Click executed in Playwright without handler exception, but no request was captured (e.g. background error or unproven cause) -> WARN
                 return SkillResult(
                     skill_name=self.name(),
                     status="WARN",
@@ -892,45 +870,62 @@ class ShopifyPurchaseBlockerAuditor(Skill):
         return meta, items
 
     async def _take_screenshot(self, page, tag: str) -> Optional[str]:
-        """Take screenshot with opaque black-box PII masking on text/personal inputs, then restore DOM."""
+        """Take screenshot with non-mutative visual CSS PII masking, covering form inputs, textareas, and visible personal data outside fields without mutating input.value or textarea.value."""
+        os.makedirs("reports/screenshots", exist_ok=True)
+        filename = f"blocker_audit_{tag}_{int(datetime.now().timestamp())}.png"
+        path = os.path.join("reports/screenshots", filename)
+
         try:
-            os.makedirs("reports/screenshots", exist_ok=True)
-            # Apply temporary opaque black box masking over all text inputs, textareas, name inputs, and PII fields
+            # Apply temporary opaque black box masking over form fields and visible text nodes with personal data without mutating values
             try:
                 await page.evaluate("""
                     () => {
-                        const selector = 'input[type="text"], input[type="email"], input[type="tel"], input[type="search"], textarea, [name*="properties"], [data-pii]';
-                        document.querySelectorAll(selector).forEach(el => {
+                        const fieldSelector = 'input[type="text"], input[type="email"], input[type="tel"], input[type="search"], textarea, [name*="properties"], [data-pii], .user-pii, .pii-data, [data-user-pii]';
+                        document.querySelectorAll(fieldSelector).forEach(el => {
                             el.dataset.origBg = el.style.backgroundColor || '';
                             el.dataset.origColor = el.style.color || '';
+                            el.dataset.origFilter = el.style.filter || '';
                             el.style.backgroundColor = '#000000';
                             el.style.color = '#000000';
-                            if (el.value) el.value = '[MASKED]';
+                            el.style.filter = 'blur(10px) brightness(0)';
+                        });
+
+                        // Mask visible personal data outside form fields (e.g. emails, phone numbers, addresses in paragraphs/spans/divs)
+                        const piiPattern = /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})|(\+?\d{1,4}?[-.\s]?\(?\d{1,3}?\)?[-.\s]?\d{1,4}[-.\s]?\d{1,4}[-.\s]?\d{1,9})/;
+                        document.querySelectorAll('p, span, div, td, li, a, h1, h2, h3, h4, h5, h6, [data-pii-text]').forEach(el => {
+                            if (el.children.length === 0 && el.textContent && piiPattern.test(el.textContent)) {
+                                el.dataset.origBg = el.style.backgroundColor || '';
+                                el.dataset.origColor = el.style.color || '';
+                                el.dataset.origFilter = el.style.filter || '';
+                                el.style.backgroundColor = '#000000';
+                                el.style.color = '#000000';
+                                el.style.filter = 'blur(10px) brightness(0)';
+                            }
                         });
                     }
                 """)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Screenshot CSS masking note: %s", e)
 
-            filename = f"blocker_audit_{tag}_{int(datetime.now().timestamp())}.png"
-            path = os.path.join("reports/screenshots", filename)
             await page.screenshot(path=path, full_page=False)
-
-            # Restore original DOM element styles
-            try:
-                await page.evaluate("""
-                    () => {
-                        const selector = 'input[type="text"], input[type="email"], input[type="tel"], input[type="search"], textarea, [name*="properties"], [data-pii]';
-                        document.querySelectorAll(selector).forEach(el => {
-                            if (el.dataset.origBg !== undefined) el.style.backgroundColor = el.dataset.origBg;
-                            if (el.dataset.origColor !== undefined) el.style.color = el.dataset.origColor;
-                        });
-                    }
-                """)
-            except Exception:
-                pass
-
             return path
         except Exception as e:
             logger.debug("Failed taking screenshot: %s", e)
             return None
+        finally:
+            # Guaranteed style restoration without mutating input or textarea values
+            try:
+                await page.evaluate("""
+                    () => {
+                        document.querySelectorAll('[data-orig-bg]').forEach(el => {
+                            el.style.backgroundColor = el.dataset.origBg;
+                            el.style.color = el.dataset.origColor;
+                            el.style.filter = el.dataset.origFilter;
+                            delete el.dataset.origBg;
+                            delete el.dataset.origColor;
+                            delete el.dataset.origFilter;
+                        });
+                    }
+                """)
+            except Exception:
+                pass
