@@ -20,8 +20,18 @@ from nano_sre.skills import (
     PixelAuditor,
     ShopifyDoctorSkill,
     ShopifyShopper,
+    ShopifyVariantAuditor,
     VisualAuditor,
 )
+
+DEFAULT_SKILLS = [
+    "shopify_shopper",
+    "pixel_auditor",
+    "visual_auditor",
+    "shopify_doctor",
+    "headless_probe",
+    "mcp_advisor",
+]
 from nano_sre.utils.llm import is_vision_model
 from nano_sre.utils.mcp import get_mcp_client
 from nano_sre.utils.shopify import bypass_shopify_password
@@ -448,6 +458,7 @@ def _build_skills(settings: Settings, update_baseline: bool) -> dict[str, Skill]
         ShopifyDoctorSkill(),
         HeadlessProbeSkill(),
         MCPAdvisor(),
+        ShopifyVariantAuditor(),
     ]
     return {skill.name(): skill for skill in skill_instances}
 
@@ -458,7 +469,7 @@ def _resolve_skill_names(
 ) -> Optional[list[str]]:
     """Resolve user-specified skill names to canonical names."""
     if not requested:
-        return None
+        return DEFAULT_SKILLS.copy()
 
     available_set = {_normalize_skill_name(name) for name in available}
     resolved = []
