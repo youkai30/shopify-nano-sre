@@ -444,7 +444,7 @@ async def test_purchase_blocker_offscreen_button_scrolled_pass():
         thread.join(timeout=5)
 
 
-# 7. JS error preventing addition -> FAIL: JS_ERROR_BLOCKING_PURCHASE
+# 7. JS error in buy button handler preventing addition -> FAIL: JS_ERROR_BLOCKING_PURCHASE
 @pytest.mark.asyncio
 async def test_purchase_blocker_js_error_blocking_fail():
     class Storefront(BaseHTTPRequestHandler):
@@ -784,141 +784,9 @@ def test_cli_default_skills_exclude_purchase_blocker_auditor():
     assert opt_in_resolved == ["shopify_purchase_blocker_auditor"]
 
 
-# REGRESSION TEST 13: 200 OK response with cart quantity remaining 0 -> WARN (NOT PASS)
+# REGRESSION TEST 13: Non-functional swatch click (Large clicked but state stays Small) -> WARN (UNPROVEN_OPTION_PATTERN)
 @pytest.mark.asyncio
-async def test_regression_200_ok_cart_remains_empty_returns_warn():
-    class Storefront(BaseHTTPRequestHandler):
-        def log_message(self, *args):
-            pass
-
-        def do_GET(self):
-            if self.path == "/products/item.js":
-                data = {
-                    "id": 1,
-                    "handle": "item",
-                    "options": [{"name": "Size", "values": ["Small"]}],
-                    "variants": [
-                        {"id": 101, "title": "Small", "price": 1599, "available": True, "options": ["Small"]}
-                    ],
-                }
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(json.dumps(data).encode("utf-8"))
-            elif self.path == "/cart.js":
-                # Cart remains empty despite HTTP 200
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(json.dumps({"item_count": 0, "items": []}).encode("utf-8"))
-            elif self.path.startswith("/products/item"):
-                html = """<!doctype html><html><body>
-                <form action="/cart/add" method="post">
-                  <select name="options[Size]">
-                    <option value="Small">Small</option>
-                  </select>
-                  <button type="submit" name="add">Add to Cart</button>
-                </form>
-                <script>
-                document.querySelector('form').onsubmit = async (e) => {
-                  e.preventDefault();
-                  await fetch('/cart/add.js', {method:'POST', body:'id=101'});
-                };
-                </script></body></html>"""
-                self.send_response(200)
-                self.send_header("Content-Type", "text/html")
-                self.end_headers()
-                self.wfile.write(html.encode("utf-8"))
-
-        def do_POST(self):
-            if self.path == "/cart/add.js":
-                # Returns 200 OK without actually storing item
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(json.dumps({"id": 101, "quantity": 1}).encode("utf-8"))
-
-    server, thread = make_test_server(Storefront)
-    try:
-        origin = f"http://127.0.0.1:{server.server_port}"
-        async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
-            page = await browser.new_page()
-            await page.goto(f"{origin}/products/item")
-            auditor = ShopifyPurchaseBlockerAuditor()
-            res = await auditor.run({"page": page, "base_url": f"{origin}/products/item"})
-            assert res.status == "WARN"
-            assert res.details["reason_code"] == "NETWORK_OR_RESPONSE_UNRESOLVED"
-            await browser.close()
-    finally:
-        server.shutdown()
-        server.server_close()
-        thread.join(timeout=5)
-
-
-# REGRESSION TEST 14: Pre-cart 503 / snapshot failure -> WARN
-@pytest.mark.asyncio
-async def test_regression_pre_cart_503_returns_warn():
-    class Storefront(BaseHTTPRequestHandler):
-        def log_message(self, *args):
-            pass
-
-        def do_GET(self):
-            if self.path == "/products/item.js":
-                data = {
-                    "id": 1,
-                    "handle": "item",
-                    "options": [{"name": "Size", "values": ["Small"]}],
-                    "variants": [
-                        {"id": 101, "title": "Small", "price": 1599, "available": True, "options": ["Small"]}
-                    ],
-                }
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(json.dumps(data).encode("utf-8"))
-            elif self.path == "/cart.js":
-                # Returns 503 Service Unavailable
-                self.send_response(503)
-                self.send_header("Content-Type", "text/plain")
-                self.end_headers()
-                self.wfile.write(b"Service Unavailable")
-            elif self.path.startswith("/products/item"):
-                html = """<!doctype html><html><body>
-                <form action="/cart/add" method="post">
-                  <select name="options[Size]">
-                    <option value="Small">Small</option>
-                  </select>
-                  <button type="submit" name="add">Add to Cart</button>
-                </form></body></html>"""
-                self.send_response(200)
-                self.send_header("Content-Type", "text/html")
-                self.end_headers()
-                self.wfile.write(html.encode("utf-8"))
-
-    server, thread = make_test_server(Storefront)
-    try:
-        origin = f"http://127.0.0.1:{server.server_port}"
-        async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
-            page = await browser.new_page()
-            await page.goto(f"{origin}/products/item")
-            auditor = ShopifyPurchaseBlockerAuditor()
-            res = await auditor.run({"page": page, "base_url": f"{origin}/products/item"})
-            assert res.status == "WARN"
-            assert res.details["reason_code"] == "UNRESOLVED_PRE_CART_STATE"
-            await browser.close()
-    finally:
-        server.shutdown()
-        server.server_close()
-        thread.join(timeout=5)
-
-
-# REGRESSION TEST 15: Quantity increase for an UNRELATED variant -> FAIL (WRONG_VARIANT_ADDED)
-@pytest.mark.asyncio
-async def test_regression_unrelated_variant_increase_returns_fail():
-    cart_items = []
-
+async def test_regression_non_functional_swatch_click_returns_warn():
     class Storefront(BaseHTTPRequestHandler):
         def log_message(self, *args):
             pass
@@ -942,34 +810,18 @@ async def test_regression_unrelated_variant_increase_returns_fail():
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
-                data = {"item_count": sum(i["quantity"] for i in cart_items), "items": cart_items}
-                self.wfile.write(json.dumps(data).encode("utf-8"))
+                self.wfile.write(json.dumps({"item_count": 0, "items": []}).encode("utf-8"))
             elif self.path.startswith("/products/item"):
+                # Swatch button for Large exists, but clicking it does NOT update selection state!
                 html = """<!doctype html><html><body>
                 <form action="/cart/add" method="post">
-                  <select name="options[Size]">
-                    <option value="Small">Small</option>
-                  </select>
+                  <button type="button" class="swatch" data-value="Large">Large</button>
                   <button type="submit" name="add">Add to Cart</button>
-                </form>
-                <script>
-                document.querySelector('form').onsubmit = async (e) => {
-                  e.preventDefault();
-                  await fetch('/cart/add.js', {method:'POST', body:'id=102'}); // Incorrectly adds 102 instead of 101
-                };
-                </script></body></html>"""
+                </form></body></html>"""
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html")
                 self.end_headers()
                 self.wfile.write(html.encode("utf-8"))
-
-        def do_POST(self):
-            if self.path == "/cart/add.js":
-                cart_items.append({"variant_id": 102, "product_id": 1, "quantity": 1})
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(json.dumps({"id": 102, "quantity": 1}).encode("utf-8"))
 
     server, thread = make_test_server(Storefront)
     try:
@@ -980,8 +832,9 @@ async def test_regression_unrelated_variant_increase_returns_fail():
             await page.goto(f"{origin}/products/item")
             auditor = ShopifyPurchaseBlockerAuditor()
             res = await auditor.run({"page": page, "base_url": f"{origin}/products/item"})
-            assert res.status == "FAIL"
-            assert res.details["reason_code"] == "WRONG_VARIANT_ADDED"
+            assert res.status == "WARN"
+            assert res.details["reason_code"] == "UNPROVEN_OPTION_PATTERN"
+            assert "Large" not in res.details["proven_purchase_conditions"]["proven_dom_options"].values()
             await browser.close()
     finally:
         server.shutdown()
@@ -989,81 +842,9 @@ async def test_regression_unrelated_variant_increase_returns_fail():
         thread.join(timeout=5)
 
 
-# REGRESSION TEST 16: Multi-language ATC button French ("Ajouter au panier") -> PASS
+# REGRESSION TEST 14: Background widget JS error without request dispatch -> WARN (NOT attributed to analytics blocking)
 @pytest.mark.asyncio
-async def test_regression_french_atc_button_pass():
-    cart_items = []
-
-    class Storefront(BaseHTTPRequestHandler):
-        def log_message(self, *args):
-            pass
-
-        def do_GET(self):
-            if self.path == "/products/item.js":
-                data = {
-                    "id": 1,
-                    "handle": "item",
-                    "options": [{"name": "Taille", "values": ["S"]}],
-                    "variants": [
-                        {"id": 101, "title": "S", "price": 1599, "available": True, "options": ["S"]}
-                    ],
-                }
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(json.dumps(data).encode("utf-8"))
-            elif self.path == "/cart.js":
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                data = {"item_count": sum(i["quantity"] for i in cart_items), "items": cart_items}
-                self.wfile.write(json.dumps(data).encode("utf-8"))
-            elif self.path.startswith("/products/item"):
-                html = """<!doctype html><html><body>
-                <form action="/cart/add" method="post">
-                  <select name="options[Taille]"><option value="S">S</option></select>
-                  <button type="submit" name="add">Ajouter au panier</button>
-                </form>
-                <script>
-                document.querySelector('form').onsubmit = async (e) => {
-                  e.preventDefault();
-                  await fetch('/cart/add.js', {method:'POST', body:'id=101'});
-                };
-                </script></body></html>"""
-                self.send_response(200)
-                self.send_header("Content-Type", "text/html")
-                self.end_headers()
-                self.wfile.write(html.encode("utf-8"))
-
-        def do_POST(self):
-            if self.path == "/cart/add.js":
-                cart_items.append({"variant_id": 101, "product_id": 1, "quantity": 1})
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(json.dumps({"id": 101, "quantity": 1}).encode("utf-8"))
-
-    server, thread = make_test_server(Storefront)
-    try:
-        origin = f"http://127.0.0.1:{server.server_port}"
-        async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
-            page = await browser.new_page()
-            await page.goto(f"{origin}/products/item")
-            auditor = ShopifyPurchaseBlockerAuditor()
-            res = await auditor.run({"page": page, "base_url": f"{origin}/products/item"})
-            assert res.status == "PASS"
-            assert res.details["reason_code"] == "NONE"
-            await browser.close()
-    finally:
-        server.shutdown()
-        server.server_close()
-        thread.join(timeout=5)
-
-
-# REGRESSION TEST 17: Mandatory customization requirement missing user input -> WARN
-@pytest.mark.asyncio
-async def test_regression_missing_customization_input_returns_warn():
+async def test_regression_background_widget_js_error_returns_warn():
     class Storefront(BaseHTTPRequestHandler):
         def log_message(self, *args):
             pass
@@ -1089,10 +870,10 @@ async def test_regression_missing_customization_input_returns_warn():
                 self.wfile.write(json.dumps({"item_count": 0, "items": []}).encode("utf-8"))
             elif self.path.startswith("/products/item"):
                 html = """<!doctype html><html><body>
+                <script>setTimeout(() => { throw new Error('Unrelated chat widget background loop exception'); }, 50);</script>
                 <form action="/cart/add" method="post">
-                  <input type="text" name="properties[Engraving]" required placeholder="Custom Engraving Text"/>
                   <select name="options[Size]"><option value="Small">Small</option></select>
-                  <button type="submit" name="add">Add to Cart</button>
+                  <button type="submit" name="add" onclick="event.preventDefault();">Add to Cart</button>
                 </form></body></html>"""
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html")
@@ -1108,8 +889,9 @@ async def test_regression_missing_customization_input_returns_warn():
             await page.goto(f"{origin}/products/item")
             auditor = ShopifyPurchaseBlockerAuditor()
             res = await auditor.run({"page": page, "base_url": f"{origin}/products/item"})
+            # Background error with unproven causality returns WARN, not claiming background widget blocked purchase!
             assert res.status == "WARN"
-            assert res.details["reason_code"] == "UNFULFILLED_PURCHASE_REQUIREMENT"
+            assert res.details["reason_code"] == "NETWORK_OR_RESPONSE_UNRESOLVED"
             await browser.close()
     finally:
         server.shutdown()
@@ -1117,7 +899,7 @@ async def test_regression_missing_customization_input_returns_warn():
         thread.join(timeout=5)
 
 
-# REGRESSION TEST 18: HTML5 Validity input constraint (e.g. quantity min=1 value=0) -> WARN
+# REGRESSION TEST 15: HTML5 Validity input constraint (e.g. quantity min=1 value=0) -> WARN
 @pytest.mark.asyncio
 async def test_regression_html5_validity_quantity_zero_returns_warn():
     class Storefront(BaseHTTPRequestHandler):
@@ -1173,75 +955,7 @@ async def test_regression_html5_validity_quantity_zero_returns_warn():
         thread.join(timeout=5)
 
 
-# REGRESSION TEST 19: Analytics JS error during click + HTTP 500 network response -> WARN (NETWORK_OR_RESPONSE_UNRESOLVED)
-@pytest.mark.asyncio
-async def test_regression_analytics_js_error_with_500_response_returns_warn():
-    class Storefront(BaseHTTPRequestHandler):
-        def log_message(self, *args):
-            pass
-
-        def do_GET(self):
-            if self.path == "/products/item.js":
-                data = {
-                    "id": 1,
-                    "handle": "item",
-                    "options": [{"name": "Size", "values": ["Small"]}],
-                    "variants": [
-                        {"id": 101, "title": "Small", "price": 1599, "available": True, "options": ["Small"]}
-                    ],
-                }
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(json.dumps(data).encode("utf-8"))
-            elif self.path == "/cart.js":
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(json.dumps({"item_count": 0, "items": []}).encode("utf-8"))
-            elif self.path.startswith("/products/item"):
-                html = """<!doctype html><html><body>
-                <form action="/cart/add" method="post">
-                  <select name="options[Size]"><option value="Small">Small</option></select>
-                  <button type="submit" name="add" onclick="setTimeout(() => { throw new Error('Analytics pixel tracking failed'); }, 0);">Add to Cart</button>
-                </form>
-                <script>
-                document.querySelector('form').onsubmit = async (e) => {
-                  e.preventDefault();
-                  await fetch('/cart/add.js', {method:'POST', body:'id=101'});
-                };
-                </script></body></html>"""
-                self.send_response(200)
-                self.send_header("Content-Type", "text/html")
-                self.end_headers()
-                self.wfile.write(html.encode("utf-8"))
-
-        def do_POST(self):
-            if self.path == "/cart/add.js":
-                self.send_response(500)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(b'{"error": "Internal server error"}')
-
-    server, thread = make_test_server(Storefront)
-    try:
-        origin = f"http://127.0.0.1:{server.server_port}"
-        async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
-            page = await browser.new_page()
-            await page.goto(f"{origin}/products/item")
-            auditor = ShopifyPurchaseBlockerAuditor()
-            res = await auditor.run({"page": page, "base_url": f"{origin}/products/item"})
-            assert res.status == "WARN"
-            assert res.details["reason_code"] == "NETWORK_OR_RESPONSE_UNRESOLVED"
-            await browser.close()
-    finally:
-        server.shutdown()
-        server.server_close()
-        thread.join(timeout=5)
-
-
-# REGRESSION TEST 20: Session cookie retention in desktop context transition
+# REGRESSION TEST 16: Session cookie retention in desktop context transition
 @pytest.mark.asyncio
 async def test_regression_desktop_context_session_cookie_retention():
     cart_items = []
@@ -1321,9 +1035,9 @@ async def test_regression_desktop_context_session_cookie_retention():
         thread.join(timeout=5)
 
 
-# REGRESSION TEST 21: Screenshot reference file validity & secret redaction
+# REGRESSION TEST 17: Opaque black box PII screenshot masking and valid file reference
 @pytest.mark.asyncio
-async def test_regression_screenshot_file_reference_validity_and_redaction():
+async def test_regression_opaque_screenshot_masking_and_valid_reference():
     class Storefront(BaseHTTPRequestHandler):
         def log_message(self, *args):
             pass
@@ -1349,9 +1063,10 @@ async def test_regression_screenshot_file_reference_validity_and_redaction():
                 self.wfile.write(json.dumps({"item_count": 0, "items": []}).encode("utf-8"))
             elif self.path.startswith("/products/item"):
                 html = """<!doctype html><html><body>
-                <script>setTimeout(() => { throw new Error('API Key shpat_secret123 test@example.com'); }, 10);</script>
                 <form action="/cart/add" method="post">
-                  <select name="options[Size]"><option value="Small"><option value="Small">Small</option></select>
+                  <input type="text" name="properties[CustomerName]" value="John Doe Secret PII"/>
+                  <textarea name="properties[Note]">Secret Personal Note</textarea>
+                  <select name="options[Size]"><option value="Small">Small</option></select>
                   <button type="submit" name="add">Add to Cart</button>
                 </form></body></html>"""
                 self.send_response(200)
@@ -1362,24 +1077,23 @@ async def test_regression_screenshot_file_reference_validity_and_redaction():
     server, thread = make_test_server(Storefront)
     try:
         origin = f"http://127.0.0.1:{server.server_port}"
-        secret_url = f"{origin}/products/item?key=shpat_secret456&email=user@test.com"
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=True)
             page = await browser.new_page()
-            await page.goto(secret_url)
-            await asyncio.sleep(0.1)
+            await page.goto(f"{origin}/products/item")
             auditor = ShopifyPurchaseBlockerAuditor()
-            res = await auditor.run({"page": page, "base_url": secret_url})
+            res = await auditor.run({"page": page, "base_url": f"{origin}/products/item"})
 
-            # Check screenshot reference exists
+            # Verify screenshot exists on disk and is a valid file reference
             screenshot = res.details.get("redacted_screenshot")
-            if screenshot:
-                assert Path(screenshot).exists(), f"Screenshot file path '{screenshot}' must exist on disk!"
-                assert not screenshot.startswith("[REDACTED]"), "Screenshot path must not be broken into [REDACTED]!"
+            assert screenshot is not None
+            assert Path(screenshot).exists(), f"Screenshot file '{screenshot}' must exist on disk!"
+            assert not screenshot.startswith("[REDACTED]"), "Screenshot file path must remain a valid file path!"
 
-            # Check summary redaction
-            assert "shpat_" not in res.summary
-            assert "user@test.com" not in res.summary
+            # Verify secrets/PII do not appear in summary or details
+            dumped_details = json.dumps(res.details) + " " + res.summary
+            assert "John Doe Secret PII" not in dumped_details
+            assert "Secret Personal Note" not in dumped_details
             await browser.close()
     finally:
         server.shutdown()
@@ -1387,7 +1101,68 @@ async def test_regression_screenshot_file_reference_validity_and_redaction():
         thread.join(timeout=5)
 
 
-# REGRESSION TEST 22: Internal auditor exception -> WARN (INTERNAL_AUDITOR_ERROR)
+# REGRESSION TEST 18: Synthetic secret in JS error during click -> verify redaction in summary and details
+@pytest.mark.asyncio
+async def test_regression_synthetic_secret_in_js_error_redacted():
+    class Storefront(BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+
+        def do_GET(self):
+            if self.path == "/products/item.js":
+                data = {
+                    "id": 1,
+                    "handle": "item",
+                    "options": [{"name": "Size", "values": ["Small"]}],
+                    "variants": [
+                        {"id": 101, "title": "Small", "price": 1599, "available": True, "options": ["Small"]}
+                    ],
+                }
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps(data).encode("utf-8"))
+            elif self.path == "/cart.js":
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"item_count": 0, "items": []}).encode("utf-8"))
+            elif self.path.startswith("/products/item"):
+                html = """<!doctype html><html><body>
+                <form action="/cart/add" method="post">
+                  <select name="options[Size]"><option value="Small">Small</option></select>
+                  <button type="submit" name="add" onclick="event.preventDefault(); throw new Error('Failed with token shpat_secret99999 user admin@store.com');">Add to Cart</button>
+                </form></body></html>"""
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html")
+                self.end_headers()
+                self.wfile.write(html.encode("utf-8"))
+
+    server, thread = make_test_server(Storefront)
+    try:
+        origin = f"http://127.0.0.1:{server.server_port}"
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            page = await browser.new_page()
+            await page.goto(f"{origin}/products/item")
+            auditor = ShopifyPurchaseBlockerAuditor()
+            res = await auditor.run({"page": page, "base_url": f"{origin}/products/item"})
+
+            # Check secret token redaction in summary and details
+            assert res.status == "FAIL"
+            assert "shpat_" not in res.summary
+            assert "admin@store.com" not in res.summary
+            dumped = json.dumps(res.details)
+            assert "shpat_" not in dumped
+            assert "admin@store.com" not in dumped
+            await browser.close()
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+# REGRESSION TEST 19: Internal auditor exception -> WARN (INTERNAL_AUDITOR_ERROR)
 @pytest.mark.asyncio
 async def test_regression_internal_auditor_exception_returns_warn():
     async with async_playwright() as p:

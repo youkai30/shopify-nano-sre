@@ -1,5 +1,5 @@
 {
-  "url": "http://127.0.0.1:41107/products/fail",
+  "url": "http://127.0.0.1:33621/products/fail",
   "results": [
     {
       "skill_name": "shopify_variant_auditor",
@@ -23,12 +23,12 @@
             },
             "meta_before": {
               "status": "empty",
-              "captured_at": "2026-10-09T19:21:09.238960+00:00",
+              "captured_at": "2026-10-09T19:48:41.698845+00:00",
               "item_count": 0
             },
             "meta_after": {
               "status": "nonempty",
-              "captured_at": "2026-10-09T19:21:09.478053+00:00",
+              "captured_at": "2026-10-09T19:48:41.909567+00:00",
               "item_count": 1
             }
           },

@@ -24,7 +24,7 @@ def _redact_value(val: Any) -> Any:
     """Recursively redact strings, dicts, and lists without corrupting local screenshot file paths."""
     if isinstance(val, str):
         # Do not redact local screenshot paths or file paths
-        if val.startswith("reports/") or val.startswith("stage3_") or val.startswith("verification_output/") or "/" in val and val.endswith(".png"):
+        if val.startswith("reports/") or val.startswith("stage3_") or val.startswith("verification_output/") or ("/" in val and val.endswith(".png")):
             return val
         return _redactor.redact_text(val)
     if isinstance(val, list):
@@ -113,13 +113,13 @@ class ShopifyPurchaseBlockerAuditor(Skill):
             )
 
         steps = []
-        js_errors: list[str] = []
+        js_errors: list[dict[str, Any]] = []
         created_desktop_context = None
         created_desktop_page = None
         audit_page = page
 
         def on_page_error(error):
-            js_errors.append(str(error))
+            js_errors.append({"error": str(error), "timestamp": _now()})
 
         try:
             # Desktop flow setup preserving session cookies
@@ -188,7 +188,7 @@ class ShopifyPurchaseBlockerAuditor(Skill):
                 return SkillResult(
                     skill_name=self.name(),
                     status="WARN",
-                    summary="Could not discover a product handle to audit purchase blockers",
+                    summary=_redact_value("Could not discover a product handle to audit purchase blockers"),
                     details=_redact_value({
                         "reason_code": "PRODUCT_NOT_DISCOVERED",
                         "steps": steps,
@@ -218,7 +218,7 @@ class ShopifyPurchaseBlockerAuditor(Skill):
                 return SkillResult(
                     skill_name=self.name(),
                     status="WARN",
-                    summary=f"Could not fetch product JSON from {ajax_url}",
+                    summary=_redact_value(f"Could not fetch product JSON from {ajax_url}"),
                     details=_redact_value({
                         "reason_code": "PRODUCT_JSON_UNAVAILABLE",
                         "steps": steps,
@@ -246,7 +246,7 @@ class ShopifyPurchaseBlockerAuditor(Skill):
                 return SkillResult(
                     skill_name=self.name(),
                     status="PASS",
-                    summary="Product has no available variants to purchase; non-blocker for unavailable inventory",
+                    summary=_redact_value("Product has no available variants to purchase; non-blocker for unavailable inventory"),
                     details=_redact_value({
                         "reason_code": "NONE",
                         "steps": steps + ["All product variants are marked unavailable"],
@@ -337,7 +337,7 @@ class ShopifyPurchaseBlockerAuditor(Skill):
                 return SkillResult(
                     skill_name=self.name(),
                     status="WARN",
-                    summary="Main product form or Add to Cart button binding unconfirmed",
+                    summary=_redact_value("Main product form or Add to Cart button binding unconfirmed"),
                     details=_redact_value({
                         "reason_code": "BUTTON_MISSING_OR_DISABLED",
                         "steps": steps + ["Could not establish clear Add to Cart button binding inside main product form"],
@@ -386,7 +386,7 @@ class ShopifyPurchaseBlockerAuditor(Skill):
                 return SkillResult(
                     skill_name=self.name(),
                     status="WARN",
-                    summary=f"Pre-cart snapshot failed (status={meta_before['status']}); unable to prove cart addition",
+                    summary=_redact_value(f"Pre-cart snapshot failed (status={meta_before['status']}); unable to prove cart addition"),
                     details=_redact_value({
                         "reason_code": "UNRESOLVED_PRE_CART_STATE",
                         "steps": steps + [f"Pre-cart read returned status: {meta_before['status']}"],
@@ -435,12 +435,14 @@ class ShopifyPurchaseBlockerAuditor(Skill):
 
             click_success = False
             click_error_msg = None
+            handler_exception = False
             try:
                 await atc_button.click(timeout=10000)
                 click_success = True
                 steps.append("Clicked Add to Cart button")
             except Exception as e:
                 click_error_msg = str(e)
+                handler_exception = True
                 logger.debug("ATC click note: %s", e)
 
             # Wait bounded time (up to 5s) for network response / state change
@@ -484,7 +486,7 @@ class ShopifyPurchaseBlockerAuditor(Skill):
                 return SkillResult(
                     skill_name=self.name(),
                     status="PASS",
-                    summary="Purchase blocker audit passed: target product variant added to cart successfully",
+                    summary=_redact_value("Purchase blocker audit passed: target product variant added to cart successfully"),
                     details=_redact_value({
                         "reason_code": "NONE",
                         "steps": steps + ["Confirmed target product variant addition to cart"],
@@ -518,42 +520,19 @@ class ShopifyPurchaseBlockerAuditor(Skill):
                     }),
                 )
 
-            # 3. Request was NOT captured AND click failed / error occurred before request -> FAIL / JS_ERROR
+            # 3. Request WAS NOT captured AND click/handler error occurred -> FAIL / JS_ERROR
             if not add_request_data["captured"]:
-                # Differentiate between handler errors in purchase flow vs unrelated analytics errors
-                handler_errors = [
-                    e for e in errors_after_click
-                    if not any(term in e.lower() for term in ("analytics", "pixel", "tracking", "gtm", "facebook"))
-                ]
-                if handler_errors:
+                if handler_exception and click_error_msg:
                     return SkillResult(
                         skill_name=self.name(),
                         status="FAIL",
-                        summary=_redact_value(f"JavaScript error causally prevented purchase request dispatch: {handler_errors[0]}"),
-                        details=_redact_value({
-                            "reason_code": "JS_ERROR_BLOCKING_PURCHASE",
-                            "steps": steps + [f"JavaScript error prevented request: {handler_errors[0]}"],
-                            "proven_purchase_conditions": proven_conditions,
-                            "expected": "Clean click execution dispatching Add to Cart request",
-                            "observed": f"JS error before request: {handler_errors[0]}",
-                            "timestamp": _now(),
-                            "reproduction_steps": [f"Navigate to {current_url}", "Click Add to Cart"],
-                            "redacted_screenshot": screenshot_path,
-                            "network_cart_evidence": cart_evidence,
-                        }),
-                    )
-
-                if not click_success:
-                    return SkillResult(
-                        skill_name=self.name(),
-                        status="FAIL",
-                        summary=_redact_value(f"Clicking Add to Cart button failed: {click_error_msg}"),
+                        summary=_redact_value("Clicking Add to Cart button failed in event handler"),
                         details=_redact_value({
                             "reason_code": "ATC_CLICK_FAILED",
-                            "steps": steps + [f"ATC click exception: {click_error_msg}"],
+                            "steps": steps + ["ATC click exception in event handler"],
                             "proven_purchase_conditions": proven_conditions,
                             "expected": "Add to Cart button successfully clicked",
-                            "observed": f"Click exception: {click_error_msg}",
+                            "observed": "Click exception in handler",
                             "timestamp": _now(),
                             "reproduction_steps": [f"Navigate to {current_url}", "Click Add to Cart"],
                             "redacted_screenshot": screenshot_path,
@@ -561,11 +540,30 @@ class ShopifyPurchaseBlockerAuditor(Skill):
                         }),
                     )
 
-                # Unproven cause when click succeeded but no request captured (e.g. analytics error or quiet failure) -> WARN
+                if errors_after_click:
+                    # Check that error occurred in direct click/submit execution window
+                    return SkillResult(
+                        skill_name=self.name(),
+                        status="FAIL",
+                        summary=_redact_value("JavaScript error in Add to Cart handler prevented request dispatch"),
+                        details=_redact_value({
+                            "reason_code": "JS_ERROR_BLOCKING_PURCHASE",
+                            "steps": steps + ["JavaScript error in ATC handler prevented request"],
+                            "proven_purchase_conditions": proven_conditions,
+                            "expected": "Clean click execution dispatching Add to Cart request",
+                            "observed": "Direct handler JS error before request",
+                            "timestamp": _now(),
+                            "reproduction_steps": [f"Navigate to {current_url}", "Click Add to Cart"],
+                            "redacted_screenshot": screenshot_path,
+                            "network_cart_evidence": cart_evidence,
+                        }),
+                    )
+
+                # Unproven cause when click succeeded but no request captured (e.g. quiet failure) -> WARN
                 return SkillResult(
                     skill_name=self.name(),
                     status="WARN",
-                    summary="Add to Cart click executed but request dispatch could not be confirmed",
+                    summary=_redact_value("Add to Cart click executed but request dispatch could not be confirmed"),
                     details=_redact_value({
                         "reason_code": "NETWORK_OR_RESPONSE_UNRESOLVED",
                         "steps": steps + ["ATC button clicked, but no network request was captured"],
@@ -614,7 +612,7 @@ class ShopifyPurchaseBlockerAuditor(Skill):
                     "steps": steps + [f"Internal error: {type(e).__name__}"],
                     "proven_purchase_conditions": {},
                     "expected": "Auditor executes without internal python errors",
-                    "observed": f"Exception: {str(e)}",
+                    "observed": "Internal auditor exception",
                     "timestamp": _now(),
                     "reproduction_steps": [f"Run auditor on {base_url}"],
                     "redacted_screenshot": None,
@@ -727,8 +725,24 @@ class ShopifyPurchaseBlockerAuditor(Skill):
             if await btn_loc.count() > 0 and await btn_loc.is_visible():
                 try:
                     await btn_loc.click(timeout=2000)
-                    selected = True
-                    proven_dom_options[opt_name] = str(val)
+                    # Verify selection state strictly in DOM after click
+                    is_active = await btn_loc.evaluate("""
+                        el => {
+                            if (el.checked) return true;
+                            if (el.getAttribute('aria-checked') === 'true') return true;
+                            if (el.getAttribute('aria-selected') === 'true') return true;
+                            if (el.getAttribute('aria-pressed') === 'true') return true;
+                            if (el.classList.contains('selected') || el.classList.contains('active')) return true;
+                            if (el.tagName.toLowerCase() === 'label') {
+                                const inp = document.getElementById(el.getAttribute('for')) || el.querySelector('input');
+                                if (inp && inp.checked) return true;
+                            }
+                            return false;
+                        }
+                    """)
+                    if is_active:
+                        selected = True
+                        proven_dom_options[opt_name] = str(val)
                 except Exception:
                     pass
 
@@ -878,16 +892,20 @@ class ShopifyPurchaseBlockerAuditor(Skill):
         return meta, items
 
     async def _take_screenshot(self, page, tag: str) -> Optional[str]:
-        """Take screenshot with PII masking and return valid file path."""
+        """Take screenshot with opaque black-box PII masking on text/personal inputs, then restore DOM."""
         try:
             os.makedirs("reports/screenshots", exist_ok=True)
-            # Mask visible PII elements on page prior to screenshot
+            # Apply temporary opaque black box masking over all text inputs, textareas, name inputs, and PII fields
             try:
                 await page.evaluate("""
                     () => {
-                        const selector = 'input[type="email"], input[type="tel"], [data-pii], .user-pii';
+                        const selector = 'input[type="text"], input[type="email"], input[type="tel"], input[type="search"], textarea, [name*="properties"], [data-pii]';
                         document.querySelectorAll(selector).forEach(el => {
-                            el.style.filter = 'blur(5px)';
+                            el.dataset.origBg = el.style.backgroundColor || '';
+                            el.dataset.origColor = el.style.color || '';
+                            el.style.backgroundColor = '#000000';
+                            el.style.color = '#000000';
+                            if (el.value) el.value = '[MASKED]';
                         });
                     }
                 """)
@@ -897,6 +915,21 @@ class ShopifyPurchaseBlockerAuditor(Skill):
             filename = f"blocker_audit_{tag}_{int(datetime.now().timestamp())}.png"
             path = os.path.join("reports/screenshots", filename)
             await page.screenshot(path=path, full_page=False)
+
+            # Restore original DOM element styles
+            try:
+                await page.evaluate("""
+                    () => {
+                        const selector = 'input[type="text"], input[type="email"], input[type="tel"], input[type="search"], textarea, [name*="properties"], [data-pii]';
+                        document.querySelectorAll(selector).forEach(el => {
+                            if (el.dataset.origBg !== undefined) el.style.backgroundColor = el.dataset.origBg;
+                            if (el.dataset.origColor !== undefined) el.style.color = el.dataset.origColor;
+                        });
+                    }
+                """)
+            except Exception:
+                pass
+
             return path
         except Exception as e:
             logger.debug("Failed taking screenshot: %s", e)

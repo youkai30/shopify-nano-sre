@@ -1,5 +1,5 @@
 {
-  "url": "http://127.0.0.1:42717/products/fail",
+  "url": "http://127.0.0.1:37731/products/fail",
   "results": [
     {
       "skill_name": "shopify_purchase_blocker_auditor",
@@ -23,12 +23,12 @@
         },
         "expected": "Add to Cart button directly clickable",
         "observed": "Pointer events blocked by overlay element (div#blocking-modal.)",
-        "timestamp": "2026-10-09T19:20:14.740969+00:00",
+        "timestamp": "2026-10-09T19:47:56.280001+00:00",
         "reproduction_steps": [
-          "Navigate to http://127.0.0.1:42717/products/fail",
+          "Navigate to http://127.0.0.1:37731/products/fail",
           "Attempt to click Add to Cart button"
         ],
-        "redacted_screenshot": "reports/screenshots/blocker_audit_button_blocked_overlay_1791573614.png",
+        "redacted_screenshot": "reports/screenshots/blocker_audit_button_blocked_overlay_1791575276.png",
         "network_cart_evidence": {}
       }
     }
