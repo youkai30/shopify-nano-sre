@@ -19,7 +19,6 @@ def _extract_canonical_filename(url: str) -> str:
         return ""
     path = unquote(urlparse(url).path)
     filename = path.split("/")[-1].split("?")[0]
-    # Remove Shopify CDN size suffixes like _100x100, _large, _300x, _master
     canonical = re.sub(
         r"_(?:\d+x\d*|\d*x\d+|small|medium|large|compact|pico|icon|master|1024x1024|2048x2048)(?=\.[a-zA-Z0-9]+$)",
         "",
@@ -30,15 +29,18 @@ def _extract_canonical_filename(url: str) -> str:
 
 
 def parse_price_cents(text: str) -> Optional[int]:
-    """Parse a price string into exact integer cents using Decimal, safely ignoring discount callouts."""
+    """Parse a price string into exact integer cents using Decimal, safely ignoring discount callouts and rejecting negative values."""
     if not text or not isinstance(text, str):
+        return None
+
+    # Reject negative prices like -$15.99 or -15.99
+    if re.search(r"-\s*[\$£€¥]?\d+|[\$£€¥]?\s*-\d+", text):
         return None
 
     # Remove discount percentages/callouts like "Save 10%" or "10% off"
     clean_text = re.sub(r"\b(?:save|off)\s*\d+\s*%", "", text, flags=re.IGNORECASE)
     clean_text = re.sub(r"\b\d+\s*%\s*(?:save|off)\b", "", clean_text, flags=re.IGNORECASE)
 
-    # Extract price pattern with currency symbol or standard decimal
     match = re.search(r"(?:[\$£€¥]\s*)?\d+(?:[.,]\d+)*(?:\s*[\$£€¥])?", clean_text)
     if not match:
         return None
@@ -158,7 +160,6 @@ class ShopifyVariantAuditor(Skill):
             origin, locale = _get_locale_prefix_and_origin(current_url)
             handle = _extract_handle_from_url(current_url)
 
-            # 1. Discover Product URL & Handle
             if not handle and "/products/" not in current_url.lower():
                 await page.goto(base_url, wait_until="commit", timeout=60000)
                 await asyncio.sleep(1)
@@ -203,7 +204,6 @@ class ShopifyVariantAuditor(Skill):
 
             steps.append(f"Auditing product handle: {handle}")
 
-            # 2. Fetch Ajax Product API JSON: GET /{locale}/products/{handle}.js
             ajax_url = f"{origin}{locale}/products/{handle}.js"
 
             product_data = None
@@ -233,7 +233,6 @@ class ShopifyVariantAuditor(Skill):
                     details={"steps": steps, "product_data": product_data},
                 )
 
-            # 3. Locate Main PDP Product Form / Container strictly
             main_form = page.locator(
                 'form[action*="/cart/add"], form.prd-ProductOffers_Form, [data-type="add-to-cart-form"]'
             ).first
@@ -251,11 +250,9 @@ class ShopifyVariantAuditor(Skill):
 
             await asyncio.sleep(1)
 
-            # Execute 4 Checks
             selected_options, complete_options = await self._get_selected_options_from_dom(page, main_form, options_list)
             is_ambiguous_pricing = await self._check_pricing_ambiguity(page, main_form)
 
-            # Target variant selection
             target_variant = None
             if len(variants_list) > 1:
                 for v in variants_list[1:]:
@@ -278,12 +275,13 @@ class ShopifyVariantAuditor(Skill):
                 page=page,
                 main_form=main_form,
                 expected_variant=expected_variant,
+                product_variants=variants_list,
                 complete_options=complete_options,
                 origin=origin,
                 locale=locale,
             )
 
-            # CHECK 2: Variant Price Check (Only if variant identity passed/warned with complete options)
+            # CHECK 2: Variant Price Check
             if complete_options and checks["variant_identity"]["status"] in ("PASS", "WARN"):
                 checks["variant_price"] = await self._check_variant_price(
                     page=page,
@@ -319,7 +317,6 @@ class ShopifyVariantAuditor(Skill):
                 options_list=options_list,
             )
 
-            # Overall status
             statuses = [c["status"] for c in checks.values()]
             if "FAIL" in statuses:
                 overall_status = "FAIL"
@@ -370,7 +367,6 @@ class ShopifyVariantAuditor(Skill):
 
         form_loc = main_form if await main_form.count() > 0 else page
 
-        # 1. Select elements
         selects = form_loc.locator("select")
         select_count = await selects.count()
         for i in range(select_count):
@@ -385,7 +381,6 @@ class ShopifyVariantAuditor(Skill):
                 if opt_name.lower() in name_attr or opt_name.lower() in id_attr or f"option{option_names.index(opt_name)+1}" in name_attr or f"option{option_names.index(opt_name)+1}" in id_attr:
                     selected_options[opt_name] = val
 
-        # 2. Checked radio buttons
         radios = form_loc.locator('input[type="radio"]:checked')
         radio_count = await radios.count()
         for i in range(radio_count):
@@ -396,7 +391,6 @@ class ShopifyVariantAuditor(Skill):
                 if opt_name.lower() in name_attr or f"option{option_names.index(opt_name)+1}" in name_attr:
                     selected_options[opt_name] = val
 
-        # 3. Active swatches ONLY (MUST have explicit active/selected state!)
         swatches = form_loc.locator(
             '.swatch.selected, .swatch.active, [data-option-value].active, [data-option-value].selected, button.selected, button.active, [aria-checked="true"], [aria-selected="true"]'
         )
@@ -494,7 +488,9 @@ class ShopifyVariantAuditor(Skill):
         """Check if PDP pricing context is ambiguous inside main_form."""
         try:
             form_loc = main_form if await main_form.count() > 0 else page
-            price_elems = form_loc.locator('.price:not(.compare-at-price):not(s *):not(del *), [data-product-price]:not(s *):not(del *), .product-single__price:not(.compare-at-price):not(s *):not(del *)')
+            price_elems = form_loc.locator(
+                '.price:not(.compare-at-price):not(s):not(s *):not(del):not(del *), [data-product-price]:not(s):not(s *):not(del):not(del *), .product-single__price:not(.compare-at-price):not(s):not(s *):not(del):not(del *)'
+            )
             count = await price_elems.count()
             if count > 1:
                 texts = set()
@@ -585,6 +581,7 @@ class ShopifyVariantAuditor(Skill):
         page,
         main_form,
         expected_variant: dict[str, Any],
+        product_variants: list[dict[str, Any]],
         complete_options: bool,
         origin: str,
         locale: str,
@@ -599,7 +596,6 @@ class ShopifyVariantAuditor(Skill):
                 "expected_variant_id": expected_variant_id,
             }
 
-        # Take Cart Snapshot 1
         meta_before, items_before = await self._fetch_cart_snapshot(page, origin, locale)
 
         if meta_before["status"] not in ("empty", "nonempty"):
@@ -609,9 +605,7 @@ class ShopifyVariantAuditor(Skill):
                 "meta_before": meta_before,
             }
 
-        qty_before = sum(item["quantity"] for item in items_before if item["variant_id"] == expected_variant_id)
-
-        # Precise network listener matching
+        # Track network requests
         add_request_data = {"captured": False, "variant_id": None, "quantity": None, "status": None, "res_variant_id": None}
         captured_req_holder = [None]
 
@@ -685,9 +679,14 @@ class ShopifyVariantAuditor(Skill):
 
             try:
                 await atc_button.click(timeout=10000)
-                await asyncio.sleep(2)
             except Exception as e:
                 logger.debug("Click ATC failed: %s", e)
+
+            # Bounded polling for network response resolution (up to 10s)
+            for _ in range(50):
+                if add_request_data["status"] is not None or (add_request_data["captured"] and not captured_req_holder[0]):
+                    break
+                await asyncio.sleep(0.1)
 
             if not add_request_data["captured"]:
                 return {
@@ -714,10 +713,29 @@ class ShopifyVariantAuditor(Skill):
                     "meta_after": meta_after,
                 }
 
-            qty_after = sum(item["quantity"] for item in items_after if item["variant_id"] == expected_variant_id)
-            delta_quantity = qty_after - qty_before
+            # Compute deltas across ALL variants belonging to the product
+            product_vids = {v.get("id") for v in product_variants if v.get("id")}
+            deltas = {}
+            for vid in product_vids:
+                q_before = sum(item["quantity"] for item in items_before if item["variant_id"] == vid)
+                q_after = sum(item["quantity"] for item in items_after if item["variant_id"] == vid)
+                deltas[vid] = q_after - q_before
 
+            # Check if an incorrect variant belonging to the product increased
+            wrong_increased_vids = [vid for vid, delta in deltas.items() if delta > 0 and vid != expected_variant_id]
             added_variant_id = add_request_data.get("res_variant_id") or add_request_data.get("variant_id")
+
+            if wrong_increased_vids:
+                actual_added = wrong_increased_vids[0]
+                return {
+                    "status": "FAIL",
+                    "summary": f"Added wrong variant ID {actual_added} instead of expected {expected_variant_id}",
+                    "expected_variant_id": expected_variant_id,
+                    "added_variant_id": actual_added,
+                    "deltas": deltas,
+                    "meta_before": meta_before,
+                    "meta_after": meta_after,
+                }
 
             if added_variant_id and str(added_variant_id) != str(expected_variant_id):
                 return {
@@ -725,17 +743,20 @@ class ShopifyVariantAuditor(Skill):
                     "summary": f"Added wrong variant ID {added_variant_id} instead of expected {expected_variant_id}",
                     "expected_variant_id": expected_variant_id,
                     "added_variant_id": added_variant_id,
-                    "delta_quantity": delta_quantity,
+                    "deltas": deltas,
                     "meta_before": meta_before,
                     "meta_after": meta_after,
                 }
 
-            if delta_quantity <= 0:
+            expected_delta = deltas.get(expected_variant_id, 0)
+
+            if expected_delta <= 0:
                 return {
                     "status": "WARN",
-                    "summary": f"Unconfirmed variant identity: quantity did not increase (delta_quantity={delta_quantity})",
+                    "summary": f"Unconfirmed variant identity: quantity did not increase (delta_quantity={expected_delta})",
                     "expected_variant_id": expected_variant_id,
-                    "delta_quantity": delta_quantity,
+                    "delta_quantity": expected_delta,
+                    "deltas": deltas,
                     "meta_before": meta_before,
                     "meta_after": meta_after,
                 }
@@ -744,7 +765,8 @@ class ShopifyVariantAuditor(Skill):
                 "status": "PASS",
                 "summary": "Variant selection matches added cart variant and quantity increased",
                 "expected_variant_id": expected_variant_id,
-                "delta_quantity": delta_quantity,
+                "delta_quantity": expected_delta,
+                "deltas": deltas,
                 "meta_before": meta_before,
                 "meta_after": meta_after,
                 "add_request_summary": {
@@ -791,7 +813,7 @@ class ShopifyVariantAuditor(Skill):
 
         # Exclude strike-through compare-at prices <s> or <del>
         price_loc = main_form.locator(
-            '.price-item--regular:not(s *):not(del *):visible, [data-product-price]:not(s *):not(del *):visible, .price:not(.compare-at-price):not(s *):not(del *):visible, .product-single__price:not(.compare-at-price):not(s *):not(del *):visible'
+            '.price-item--sale:not(s):not(s *):not(del):not(del *):not(.compare-at-price):not(.compare-at-price *):visible, .price-item--regular:not(s):not(s *):not(del):not(del *):not(.compare-at-price):not(.compare-at-price *):visible, [data-product-price]:not(s):not(s *):not(del):not(del *):visible, .price:not(.compare-at-price):not(s):not(s *):not(del):not(del *):visible, .product-single__price:not(.compare-at-price):not(s):not(s *):not(del):not(del *):visible'
         ).first
 
         if await price_loc.count() == 0:
