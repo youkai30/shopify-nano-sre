@@ -257,9 +257,9 @@ async def test_inactive_swatch_button_ignored():
         thread.join(timeout=5)
 
 
-# 3. Strike-through compare price <s>$20.00</s> with sale price $15.00 -> PASS
+# 3. Literal price container: <div class="price"><s class="price-item--regular">$20.00</s><span class="price-item--sale">$15.00</span></div> -> PASS
 @pytest.mark.asyncio
-async def test_strikethrough_s_tag_compare_price_ignored():
+async def test_price_container_with_strikethrough_sale_price():
     cart_items = []
 
     class Storefront(BaseHTTPRequestHandler):
@@ -285,12 +285,14 @@ async def test_strikethrough_s_tag_compare_price_ignored():
                 data = {"item_count": sum(i["quantity"] for i in cart_items), "items": cart_items}
                 self.wfile.write(json.dumps(data).encode("utf-8"))
             elif self.path.startswith("/products/item"):
-                # Exact HTML structure specified in prompt: <s> with class price-item--regular
+                # Literal DOM structure specified in prompt
                 html = """<!doctype html><html><body>
                 <form action="/cart/add" method="post">
                   <select name="options[Size]"><option value="Default">Default</option></select>
-                  <s class="price-item--regular">$20.00</s>
-                  <span class="price-item--sale">$15.00</span>
+                  <div class="price">
+                    <s class="price-item--regular">$20.00</s>
+                    <span class="price-item--sale">$15.00</span>
+                  </div>
                   <button type="submit" name="add">Add to cart</button>
                 </form>
                 <script>
@@ -373,7 +375,6 @@ async def test_request_declares_102_cart_adds_101_returns_fail():
                 <script>
                 document.querySelector('form').onsubmit = async (e) => {
                   e.preventDefault();
-                  // Request sends 102, but cart adds 101
                   await fetch('/cart/add.js', {method:'POST', body:'id=102'});
                 };
                 </script></body></html>"""
@@ -384,7 +385,6 @@ async def test_request_declares_102_cart_adds_101_returns_fail():
 
         def do_POST(self):
             if self.path == "/cart/add.js":
-                # Server bug: adds 101 instead of requested 102
                 cart_items.append({"variant_id": 101, "product_id": 1, "quantity": 1})
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
@@ -414,9 +414,9 @@ async def test_request_declares_102_cart_adds_101_returns_fail():
         thread.join(timeout=5)
 
 
-# 5. Delayed 4-second response returning HTTP 422 -> WARN
+# 5. Delayed 8-second response returning HTTP 422 timing out -> WARN with add_response_timeout
 @pytest.mark.asyncio
-async def test_delayed_response_422_returns_warn():
+async def test_8s_delayed_response_times_out_returns_warn():
     class Storefront(BaseHTTPRequestHandler):
         def log_message(self, *args):
             pass
@@ -458,9 +458,9 @@ async def test_delayed_response_422_returns_warn():
 
         def do_POST(self):
             if self.path == "/cart/add.js":
-                # Delay 4 seconds then return HTTP 422
+                # Delay 8 seconds (longer than 5s timeout) then return 422
                 import time
-                time.sleep(4)
+                time.sleep(8)
                 self.send_response(422)
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
@@ -477,7 +477,7 @@ async def test_delayed_response_422_returns_warn():
             res = await auditor.run({"page": page, "base_url": f"{origin}/products/item"})
             assert res.status == "WARN"
             assert res.details["checks"]["variant_identity"]["status"] == "WARN"
-            assert "422" in res.details["checks"]["variant_identity"]["summary"]
+            assert "add_response_timeout" in res.details["checks"]["variant_identity"]["summary"]
             await browser.close()
     finally:
         server.shutdown()

@@ -605,7 +605,6 @@ class ShopifyVariantAuditor(Skill):
                 "meta_before": meta_before,
             }
 
-        # Track network requests
         add_request_data = {"captured": False, "variant_id": None, "quantity": None, "status": None, "res_variant_id": None}
         captured_req_holder = [None]
 
@@ -682,9 +681,12 @@ class ShopifyVariantAuditor(Skill):
             except Exception as e:
                 logger.debug("Click ATC failed: %s", e)
 
-            # Bounded polling for network response resolution (up to 10s)
-            for _ in range(50):
-                if add_request_data["status"] is not None or (add_request_data["captured"] and not captured_req_holder[0]):
+            # Bounded polling for network response resolution (up to 5s)
+            start_poll = datetime.now()
+            response_resolved = False
+            while (datetime.now() - start_poll).total_seconds() < 5.0:
+                if add_request_data["status"] is not None:
+                    response_resolved = True
                     break
                 await asyncio.sleep(0.1)
 
@@ -695,7 +697,15 @@ class ShopifyVariantAuditor(Skill):
                     "expected_variant_id": expected_variant_id,
                 }
 
-            if add_request_data["status"] and add_request_data["status"] >= 400:
+            if not response_resolved or add_request_data["status"] is None:
+                return {
+                    "status": "WARN",
+                    "summary": "Add to Cart network request response unresolved / timed out (add_response_timeout)",
+                    "expected_variant_id": expected_variant_id,
+                    "add_request_summary": add_request_data,
+                }
+
+            if add_request_data["status"] >= 400:
                 return {
                     "status": "WARN",
                     "summary": f"Add to Cart request returned HTTP {add_request_data['status']}",
@@ -721,7 +731,6 @@ class ShopifyVariantAuditor(Skill):
                 q_after = sum(item["quantity"] for item in items_after if item["variant_id"] == vid)
                 deltas[vid] = q_after - q_before
 
-            # Check if an incorrect variant belonging to the product increased
             wrong_increased_vids = [vid for vid, delta in deltas.items() if delta > 0 and vid != expected_variant_id]
             added_variant_id = add_request_data.get("res_variant_id") or add_request_data.get("variant_id")
 
@@ -811,18 +820,50 @@ class ShopifyVariantAuditor(Skill):
                 "summary": "Main product form missing for price verification",
             }
 
-        # Exclude strike-through compare-at prices <s> or <del>
-        price_loc = main_form.locator(
-            '.price-item--sale:not(s):not(s *):not(del):not(del *):not(.compare-at-price):not(.compare-at-price *):visible, .price-item--regular:not(s):not(s *):not(del):not(del *):not(.compare-at-price):not(.compare-at-price *):visible, [data-product-price]:not(s):not(s *):not(del):not(del *):visible, .price:not(.compare-at-price):not(s):not(s *):not(del):not(del *):visible, .product-single__price:not(.compare-at-price):not(s):not(s *):not(del):not(del *):visible'
-        ).first
+        # Prioritize sale price elements over regular elements inside main_form
+        selectors = [
+            '.price-item--sale',
+            '.price-item--regular',
+            '[data-product-price]',
+            '.product-single__price',
+            '.price',
+        ]
 
-        if await price_loc.count() == 0:
+        price_text = None
+        for sel in selectors:
+            loc = main_form.locator(sel)
+            cnt = await loc.count()
+            for i in range(cnt):
+                item_loc = loc.nth(i)
+                if not await item_loc.is_visible():
+                    continue
+
+                # JS evaluate: clone element and strip strikethrough s/del/compare-at elements
+                raw_text = await item_loc.evaluate("""
+                    el => {
+                        if (el.tagName.toLowerCase() === 's' || el.tagName.toLowerCase() === 'del' || el.classList.contains('compare-at-price')) {
+                            return '';
+                        }
+                        const clone = el.cloneNode(true);
+                        clone.querySelectorAll('s, del, .compare-at-price, [data-compare-price], .price__compare-at').forEach(e => e.remove());
+                        return clone.innerText || clone.textContent || '';
+                    }
+                """)
+                raw_text = raw_text.strip()
+                if raw_text:
+                    parsed = parse_price_cents(raw_text)
+                    if parsed is not None:
+                        price_text = raw_text
+                        break
+            if price_text:
+                break
+
+        if not price_text:
             return {
                 "status": "WARN",
                 "summary": "Could not locate PDP price element within main product form",
             }
 
-        price_text = await price_loc.inner_text()
         parsed_cents = parse_price_cents(price_text)
 
         if parsed_cents is None:
