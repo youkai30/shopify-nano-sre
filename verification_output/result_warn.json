@@ -1,0 +1,36 @@
+{
+  "url": "http://127.0.0.1:46447/products/warn",
+  "results": [
+    {
+      "skill_name": "shopify_variant_auditor",
+      "status": "WARN",
+      "summary": "Variant audit completed with warnings: variant_identity, variant_price, variant_image",
+      "details": {
+        "steps": [
+          "Auditing product handle: warn"
+        ],
+        "product_handle": "warn",
+        "expected_variant_id": 301,
+        "checks": {
+          "variant_identity": {
+            "status": "WARN",
+            "summary": "Partial or ambiguous option selection in DOM",
+            "expected_variant_id": 301
+          },
+          "variant_price": {
+            "status": "WARN",
+            "summary": "Option selection for target variant was unproven or incomplete"
+          },
+          "variant_image": {
+            "status": "WARN",
+            "summary": "Option selection for target variant was unproven or incomplete"
+          },
+          "variant_availability_display": {
+            "status": "NOT_APPLICABLE",
+            "summary": "No unavailable variants exist in product data"
+          }
+        }
+      }
+    }
+  ]
+}

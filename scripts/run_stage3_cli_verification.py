@@ -1,4 +1,8 @@
-"""Run real CLI verification outside pytest with real Chromium browser on PASS, FAIL, and WARN scenarios."""
+"""Stage 3 standalone CLI verification script for shopify_purchase_blocker_auditor.
+
+Tests PASS, FAIL, and WARN scenarios outside pytest using real Chromium.
+Asserts exit codes, skill name, status, reason_code, evidence, and privacy redaction.
+"""
 
 import json
 import os
@@ -10,10 +14,10 @@ from pathlib import Path
 
 
 def main():
-    carts = {"pass": [], "fail": []}
+    carts = {"pass": []}
     active_scenario = ["pass"]
 
-    class MultiScenarioStorefront(BaseHTTPRequestHandler):
+    class Stage3Storefront(BaseHTTPRequestHandler):
         def log_message(self, *args):
             pass
 
@@ -23,39 +27,34 @@ def main():
                 data = {
                     "id": 1,
                     "handle": "pass",
-                    "options": [{"name": "Size", "values": ["Small", "Large"]}],
+                    "options": [{"name": "Size", "values": ["Small"]}],
                     "variants": [
-                        {"id": 101, "title": "Small", "price": 1599, "available": True, "options": ["Small"], "featured_image": {"src": "/img.svg"}},
-                        {"id": 102, "title": "Large", "price": 2500, "available": True, "options": ["Large"], "featured_image": {"src": "/img.svg"}}
+                        {"id": 101, "title": "Small", "price": 1599, "available": True, "options": ["Small"]}
                     ]
                 }
                 self.send(200, json.dumps(data), "application/json")
-            # FAIL scenario product
+            # FAIL scenario product (blocking un-closeable overlay)
             elif self.path == "/products/fail.js":
                 data = {
                     "id": 2,
                     "handle": "fail",
-                    "options": [{"name": "Size", "values": ["Small", "Large"]}],
+                    "options": [{"name": "Size", "values": ["Small"]}],
                     "variants": [
-                        {"id": 201, "title": "Small", "price": 1599, "options": ["Small"]},
-                        {"id": 202, "title": "Large", "price": 2500, "options": ["Large"]}
+                        {"id": 201, "title": "Small", "price": 1599, "available": True, "options": ["Small"]}
                     ]
                 }
                 self.send(200, json.dumps(data), "application/json")
-            # WARN scenario product
+            # WARN scenario product (500 server error on cart add)
             elif self.path == "/products/warn.js":
                 data = {
                     "id": 3,
                     "handle": "warn",
-                    "options": [{"name": "Size", "values": ["Small", "Large"]}, {"name": "Color", "values": ["Red"]}],
+                    "options": [{"name": "Size", "values": ["Small"]}],
                     "variants": [
-                        {"id": 301, "title": "Small / Red", "price": 1599, "options": ["Small", "Red"]}
+                        {"id": 301, "title": "Small", "price": 1599, "available": True, "options": ["Small"]}
                     ]
                 }
                 self.send(200, json.dumps(data), "application/json")
-            elif self.path == "/img.svg":
-                svg = '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="green"/></svg>'
-                self.send(200, svg, "image/svg+xml")
             elif self.path == "/cart.js":
                 c = carts.get(active_scenario[0], [])
                 self.send(200, json.dumps({"item_count": sum(i["quantity"] for i in c), "items": c}), "application/json")
@@ -64,68 +63,53 @@ def main():
                 <form action="/cart/add" method="post">
                   <select name="options[Size]">
                     <option value="Small">Small</option>
-                    <option value="Large">Large</option>
                   </select>
-                  <span class="price-item--regular">$15.99</span>
-                  <img class="product-featured-media" src="/img.svg" width="100" height="100"/>
                   <button type="submit" name="add">Add to cart</button>
                 </form>
                 <script>
-                const sel = document.querySelector('select');
-                const price = document.querySelector('.price-item--regular');
-                sel.onchange = () => {
-                  if (sel.value === 'Large') price.textContent = '$25.00';
-                  else price.textContent = '$15.99';
-                };
                 document.querySelector('form').onsubmit = async (e) => {
                   e.preventDefault();
-                  const vid = sel.value === 'Large' ? 102 : 101;
-                  await fetch('/cart/add.js', {method:'POST', body:'id='+vid});
+                  await fetch('/cart/add.js', {method:'POST', body:'id=101'});
                 };
                 </script></body></html>"""
                 self.send(200, html, "text/html")
             elif self.path.startswith("/products/fail"):
-                # Always sends wrong variant ID 201
+                html = """<!doctype html><html><body>
+                <div id="blocking-modal" style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999;background:rgba(0,0,0,0.8);">Modal</div>
+                <form action="/cart/add" method="post">
+                  <select name="options[Size]">
+                    <option value="Small">Small</option>
+                  </select>
+                  <button type="submit" name="add">Add to cart</button>
+                </form></body></html>"""
+                self.send(200, html, "text/html")
+            elif self.path.startswith("/products/warn"):
                 html = """<!doctype html><html><body>
                 <form action="/cart/add" method="post">
                   <select name="options[Size]">
                     <option value="Small">Small</option>
-                    <option value="Large">Large</option>
                   </select>
-                  <span class="price-item--regular">$10.00</span>
                   <button type="submit" name="add">Add to cart</button>
                 </form>
                 <script>
                 document.querySelector('form').onsubmit = async (e) => {
                   e.preventDefault();
-                  await fetch('/cart/add.js', {method:'POST', body:'id=201'});
+                  await fetch('/cart/add.js', {method:'POST', body:'id=301'});
                 };
                 </script></body></html>"""
-                self.send(200, html, "text/html")
-            elif self.path.startswith("/products/warn"):
-                # Partial options in DOM
-                html = """<!doctype html><html><body>
-                <form action="/cart/add" method="post">
-                  <select name="options[Size]">
-                    <option value="Small">Small</option>
-                  </select>
-                  <span class="price-item--regular">$15.99</span>
-                  <button type="submit" name="add">Add to cart</button>
-                </form></body></html>"""
                 self.send(200, html, "text/html")
             else:
                 self.send(404, "Not found", "text/plain")
 
         def do_POST(self):
             if self.path == "/cart/add.js":
-                length = int(self.headers.get("Content-Length", 0))
-                body = self.rfile.read(length).decode("utf-8")
                 if active_scenario[0] == "pass":
-                    vid = 102 if "102" in body else 101
-                    carts["pass"].append({"variant_id": vid, "product_id": 1, "quantity": 1})
+                    carts["pass"].append({"variant_id": 101, "product_id": 1, "quantity": 1})
+                    self.send(200, "{}", "application/json")
+                elif active_scenario[0] == "warn":
+                    self.send(500, '{"error": "server error"}', "application/json")
                 else:
-                    carts["fail"].append({"variant_id": 201, "product_id": 2, "quantity": 1})
-                self.send(200, "{}", "application/json")
+                    self.send(400, '{"error": "bad request"}', "application/json")
 
         def send(self, status, body, content_type):
             encoded = body.encode("utf-8") if isinstance(body, str) else body
@@ -135,7 +119,7 @@ def main():
             self.end_headers()
             self.wfile.write(encoded)
 
-    server = ThreadingHTTPServer(("127.0.0.1", 0), MultiScenarioStorefront)
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Stage3Storefront)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
 
@@ -149,18 +133,18 @@ def main():
             "LLM_API_KEY": "",
         })
 
-        out_dir = Path("verification_output")
+        out_dir = Path("stage3_verification_output")
         out_dir.mkdir(exist_ok=True)
 
         scenarios = [
-            ("pass", f"{origin}/products/pass", "PASS"),
-            ("fail", f"{origin}/products/fail", "FAIL"),
-            ("warn", f"{origin}/products/warn", "WARN"),
+            ("pass", f"{origin}/products/pass", "PASS", "NONE"),
+            ("fail", f"{origin}/products/fail", "FAIL", "BUTTON_BLOCKED_BY_OVERLAY"),
+            ("warn", f"{origin}/products/warn", "WARN", "NETWORK_OR_RESPONSE_UNRESOLVED"),
         ]
 
-        for name, url, expected_status in scenarios:
+        for name, url, expected_status, expected_reason in scenarios:
             active_scenario[0] = name
-            print(f"\n--- Running CLI audit for scenario: {name} (expected {expected_status}) ---")
+            print(f"\n--- Running Stage 3 CLI audit for scenario: {name} (expected {expected_status}) ---")
             json_out = out_dir / f"result_{name}.json"
             reports_dir = out_dir / f"reports_{name}"
             cmd = [
@@ -168,30 +152,41 @@ def main():
                 "--report-dir", str(reports_dir),
                 "audit",
                 "--url", url,
-                "--skill", "shopify_variant_auditor",
+                "--skill", "shopify_purchase_blocker_auditor",
                 "--output", str(json_out),
             ]
             res = subprocess.run(cmd, env=env, text=True, capture_output=True, timeout=60)
-            print("Exit code:", res.returncode)
-            print("STDOUT:", res.stdout)
-            if res.stderr:
-                print("STDERR:", res.stderr)
+            assert res.returncode == 0, f"CLI command failed with exit code {res.returncode}\nSTDERR: {res.stderr}"
 
             assert json_out.exists(), f"Output JSON missing for {name}"
             data = json.loads(json_out.read_text(encoding="utf-8"))
+            assert len(data["results"]) == 1, "Expected exactly 1 skill result"
             skill_res = data["results"][0]
+
+            assert skill_res["skill_name"] == "shopify_purchase_blocker_auditor", f"Unexpected skill_name: {skill_res['skill_name']}"
             status = skill_res["status"]
-            print(f"Scenario {name} status: {status} (summary: {skill_res['summary']})")
-            assert status == expected_status, f"Expected {expected_status} for {name}, got {status}"
+            reason = skill_res["details"].get("reason_code")
+
+            print(f"Scenario {name} status: {status}, reason: {reason} (summary: {skill_res['summary']})")
+            assert status == expected_status, f"Expected status {expected_status} for {name}, got {status}"
+            assert reason == expected_reason, f"Expected reason_code {expected_reason} for {name}, got {reason}"
+
+            # Verify evidence structure
+            details = skill_res["details"]
+            for field in ("reason_code", "steps", "proven_purchase_conditions", "expected", "observed", "timestamp", "reproduction_steps", "network_cart_evidence"):
+                assert field in details, f"Missing required evidence field '{field}' in details"
+
+            # Check privacy - verify no sensitive tokens or passwords
+            dumped_details = json.dumps(details)
+            for forbidden in ("shpat_", "bearer ", "password=", "secret"):
+                assert forbidden not in dumped_details.lower(), f"Forbidden secret string '{forbidden}' found in output details"
 
             # Inspect Markdown report
             reports = list(reports_dir.glob("*.md"))
             assert len(reports) > 0, f"No markdown report generated for {name}"
             print(f"Report path: {reports[0]}")
-            print("Report preview:")
-            print(reports[0].read_text(encoding="utf-8")[:300])
 
-        print("\nAll CLI scenario verifications PASSED successfully!")
+        print("\nAll Stage 3 CLI scenario verifications PASSED successfully!")
 
     finally:
         server.shutdown()

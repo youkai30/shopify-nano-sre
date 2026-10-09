@@ -1,0 +1,53 @@
+{
+  "url": "http://127.0.0.1:39415/products/pass",
+  "results": [
+    {
+      "skill_name": "shopify_purchase_blocker_auditor",
+      "status": "PASS",
+      "summary": "Purchase blocker audit passed: target product variant added to cart successfully",
+      "details": {
+        "reason_code": "NONE",
+        "steps": [
+          "Auditing product handle: pass",
+          "Successfully selected required variant options",
+          "Scrolled to Add to Cart button",
+          "Clicked Add to Cart button",
+          "Confirmed target product variant addition to cart"
+        ],
+        "proven_purchase_conditions": {
+          "product_handle": "pass",
+          "target_variant_id": 101,
+          "selected_options": [
+            "Small"
+          ],
+          "required_consents_satisfied": false
+        },
+        "expected": "Target product variant added to cart",
+        "observed": "Added variant ID 101 (quantity delta = 1)",
+        "timestamp": "2026-10-09T18:34:40.942945+00:00",
+        "reproduction_steps": [
+          "Navigate to http://127.0.0.1:39415/products/pass",
+          "Click Add to Cart"
+        ],
+        "redacted_screenshot": "reports/screenshots/blocker_audit_atc_result_[REDACTED]80.png",
+        "network_cart_evidence": {
+          "meta_before": {
+            "status": "empty",
+            "captured_at": "2026-10-09T18:34:40.659204+00:00",
+            "item_count": 0
+          },
+          "meta_after": {
+            "status": "nonempty",
+            "captured_at": "2026-10-09T18:34:40.839935+00:00",
+            "item_count": 1
+          },
+          "add_request_summary": {
+            "captured": true,
+            "status": 200
+          },
+          "delta_quantity": 1
+        }
+      }
+    }
+  ]
+}
