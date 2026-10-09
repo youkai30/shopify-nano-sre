@@ -12,4 +12,4 @@ tests/test_cart_browser_integration.py::test_real_browser_cart_journey_and_share
 tests/test_cart_browser_integration.py::test_real_browser_cart_journey_and_shared_session[api_only-nonempty-api_only_fallback] PASSED [ 75%]
 tests/test_cli_local_fixture_integration.py::test_cli_audit_runs_real_browser_shopper_and_writes_sanitized_reports PASSED [100%]
 
-========================= 4 passed in 64.43s (0:01:04) =========================
+========================= 4 passed in 64.07s (0:01:04) =========================
