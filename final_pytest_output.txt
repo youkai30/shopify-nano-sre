@@ -98,4 +98,4 @@ tests/test_trigger.py::TestTriggerManager::test_wait_for_trigger_fallback
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
 --------------------- generated xml file: /app/report.xml ----------------------
-================ 273 passed, 133 warnings in 298.39s (0:04:58) =================
+================ 273 passed, 133 warnings in 295.37s (0:04:55) =================

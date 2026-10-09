@@ -1,0 +1,3 @@
+33a0850a533ed37d0b4e56350e8a5e1ceb0b028f5d6d578dbf9a8b132e90abef  phase2-final.patch
+447f2f1bfb7c777491c32ac2f56aa07382b94b427dac38aef3270d545f00501c  src/nano_sre/skills/variant_auditor.py
+2a75b457e310496dcfa658751200ce05781d1077dd78c9a373acdf878c568cf2  tests/test_variant_auditor.py
