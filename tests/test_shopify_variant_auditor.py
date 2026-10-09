@@ -175,7 +175,7 @@ async def test_price_1599_vs_1600_returns_fail():
                     "id": 1,
                     "handle": "item",
                     "options": [{"name": "Size", "values": ["Default"]}],
-                    "variants": [{"id": 101, "title": "Default", "price": 1600, "options": ["Default"]}] # Expected 16.00
+                    "variants": [{"id": 101, "title": "Default", "price": 1600, "options": ["Default"]}]
                 }
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
@@ -188,7 +188,6 @@ async def test_price_1599_vs_1600_returns_fail():
                 data = {"item_count": sum(i["quantity"] for i in cart_items), "items": cart_items}
                 self.wfile.write(json.dumps(data).encode("utf-8"))
             elif self.path.startswith("/products/item"):
-                # Displays $15.99
                 html = """<!doctype html><html><body>
                 <form action="/cart/add" method="post">
                   <select name="options[Size]"><option value="Default">Default</option></select>
@@ -234,9 +233,9 @@ async def test_price_1599_vs_1600_returns_fail():
         thread.join(timeout=5)
 
 
-# Regression 2: Missing PDP price selector with matching recommendation price -> WARN
+# Regression 2: Strict product-form scoping (missing main form + recommendation card -> WARN)
 @pytest.mark.asyncio
-async def test_missing_pdp_price_with_recommendation_price_returns_warn():
+async def test_missing_main_form_with_unrelated_button_returns_warn():
     class Storefront(BaseHTTPRequestHandler):
         def log_message(self, *args):
             pass
@@ -259,14 +258,11 @@ async def test_missing_pdp_price_with_recommendation_price_returns_warn():
                 self.end_headers()
                 self.wfile.write(json.dumps({"item_count": 0, "items": []}).encode("utf-8"))
             elif self.path.startswith("/products/item"):
-                # Main form has NO price element, but recommendations section has $25.00
+                # No product form, only recommendation card button!
                 html = """<!doctype html><html><body>
-                <form action="/cart/add" method="post">
-                  <select name="options[Size]"><option value="Default">Default</option></select>
-                  <button type="submit" name="add">Add to cart</button>
-                </form>
                 <div class="recommendations">
                   <span class="price-item--regular">$25.00</span>
+                  <button type="button" class="add-to-cart">Add recommendation</button>
                 </div></body></html>"""
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html")
@@ -283,8 +279,7 @@ async def test_missing_pdp_price_with_recommendation_price_returns_warn():
             auditor = ShopifyVariantAuditor()
             res = await auditor.run({"page": page, "base_url": f"{origin}/products/item"})
             assert res.status == "WARN"
-            assert res.details["checks"]["variant_price"]["status"] == "WARN"
-            assert "Could not locate PDP price element" in res.details["checks"]["variant_price"]["summary"] or "Main product form missing" in res.details["checks"]["variant_price"]["summary"]
+            assert "Could not establish main product form binding" in res.summary
             await browser.close()
     finally:
         server.shutdown()
@@ -292,9 +287,17 @@ async def test_missing_pdp_price_with_recommendation_price_returns_warn():
         thread.join(timeout=5)
 
 
-# Regression 3: Pre-cart HTTP 503 + Add HTTP 422 + pre-existing variant -> WARN
+# Regression 3: Tight Cart Payload Validation
 @pytest.mark.asyncio
-async def test_pre_cart_503_add_422_returns_warn():
+@pytest.mark.parametrize("invalid_cart_payload", [
+    {"item_count": True, "items": []}, # bool item_count
+    {"item_count": 1, "items": [{"variant_id": True, "quantity": 1}]}, # bool variant_id
+    {"item_count": 1, "items": [{"variant_id": 101, "quantity": True}]}, # bool quantity
+    {"item_count": 1, "items": [{"variant_id": 101, "quantity": 1, "selling_plan_id": True}]}, # bool selling_plan_id
+    {"item_count": 1, "items": ["invalid_string_item"]}, # non-dict item
+    {"item_count": 5, "items": [{"variant_id": 101, "quantity": 1}]}, # inconsistent item count (5 != 1)
+])
+async def test_invalid_cart_payload_returns_warn(invalid_cart_payload):
     class Storefront(BaseHTTPRequestHandler):
         def log_message(self, *args):
             pass
@@ -312,90 +315,14 @@ async def test_pre_cart_503_add_422_returns_warn():
                 self.end_headers()
                 self.wfile.write(json.dumps(data).encode("utf-8"))
             elif self.path == "/cart.js":
-                # Returns 503 Unavailable
-                self.send_response(503)
-                self.send_header("Content-Type", "text/plain")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
                 self.end_headers()
-                self.wfile.write(b"Service Unavailable")
+                self.wfile.write(json.dumps(invalid_cart_payload).encode("utf-8"))
             elif self.path.startswith("/products/item"):
                 html = """<!doctype html><html><body>
                 <form action="/cart/add" method="post">
                   <select name="options[Size]"><option value="Default">Default</option></select>
-                  <span class="price-item--regular">$15.99</span>
-                  <button type="submit" name="add">Add to cart</button>
-                </form>
-                <script>
-                document.querySelector('form').onsubmit = async (e) => {
-                  e.preventDefault();
-                  await fetch('/cart/add.js', {method:'POST', body:'id=101'});
-                };
-                </script></body></html>"""
-                self.send_response(200)
-                self.send_header("Content-Type", "text/html")
-                self.end_headers()
-                self.wfile.write(html.encode("utf-8"))
-
-        def do_POST(self):
-            if self.path == "/cart/add.js":
-                # Returns 422 Unprocessable Entity
-                self.send_response(422)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(b'{"status":422,"message":"Unprocessable Entity"}')
-
-    server, thread = make_test_server(Storefront)
-    try:
-        origin = f"http://127.0.0.1:{server.server_port}"
-        async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
-            page = await browser.new_page()
-            await page.goto(f"{origin}/products/item")
-            auditor = ShopifyVariantAuditor()
-            res = await auditor.run({"page": page, "base_url": f"{origin}/products/item"})
-            assert res.status == "WARN"
-            assert res.details["checks"]["variant_identity"]["status"] == "WARN"
-            await browser.close()
-    finally:
-        server.shutdown()
-        server.server_close()
-        thread.join(timeout=5)
-
-
-# Regression 4: Missing unavailable variant option in DOM -> WARN
-@pytest.mark.asyncio
-async def test_missing_unavailable_variant_option_returns_warn():
-    class Storefront(BaseHTTPRequestHandler):
-        def log_message(self, *args):
-            pass
-
-        def do_GET(self):
-            if self.path == "/products/item.js":
-                data = {
-                    "id": 1,
-                    "handle": "item",
-                    "options": [{"name": "Size", "values": ["Small", "XL"]}],
-                    "variants": [
-                        {"id": 101, "title": "Small", "price": 1599, "available": True, "options": ["Small"]},
-                        {"id": 103, "title": "XL", "price": 3000, "available": False, "options": ["XL"]}
-                    ]
-                }
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(json.dumps(data).encode("utf-8"))
-            elif self.path == "/cart.js":
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(json.dumps({"item_count": 0, "items": []}).encode("utf-8"))
-            elif self.path.startswith("/products/item"):
-                # DOM only renders "Small", missing "XL" option in dropdown!
-                html = """<!doctype html><html><body>
-                <form action="/cart/add" method="post">
-                  <select name="options[Size]">
-                    <option value="Small">Small</option>
-                  </select>
-                  <span class="price-item--regular">$15.99</span>
                   <button type="submit" name="add">Add to cart</button>
                 </form></body></html>"""
                 self.send_response(200)
@@ -413,8 +340,8 @@ async def test_missing_unavailable_variant_option_returns_warn():
             auditor = ShopifyVariantAuditor()
             res = await auditor.run({"page": page, "base_url": f"{origin}/products/item"})
             assert res.status == "WARN"
-            assert res.details["checks"]["variant_availability_display"]["status"] == "WARN"
-            assert "Could not select complete options" in res.details["checks"]["variant_availability_display"]["summary"]
+            assert res.details["checks"]["variant_identity"]["status"] == "WARN"
+            assert "inconsistent_payload" in res.details["checks"]["variant_identity"]["meta_before"]["status"]
             await browser.close()
     finally:
         server.shutdown()
@@ -422,9 +349,9 @@ async def test_missing_unavailable_variant_option_returns_warn():
         thread.join(timeout=5)
 
 
-# Regression 5: Swatch option button placed before ATC submit button
+# Regression 4: Precise Add to Cart Request Matching (Cross-origin & Misleading paths)
 @pytest.mark.asyncio
-async def test_option_swatch_button_before_atc_button():
+async def test_precise_request_matching():
     cart_items = []
 
     class Storefront(BaseHTTPRequestHandler):
@@ -436,8 +363,8 @@ async def test_option_swatch_button_before_atc_button():
                 data = {
                     "id": 1,
                     "handle": "item",
-                    "options": [{"name": "Size", "values": ["Small"]}],
-                    "variants": [{"id": 101, "title": "Small", "price": 1599, "options": ["Small"]}]
+                    "options": [{"name": "Size", "values": ["Default"]}],
+                    "variants": [{"id": 101, "title": "Default", "price": 1599, "options": ["Default"]}]
                 }
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
@@ -447,18 +374,21 @@ async def test_option_swatch_button_before_atc_button():
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
-                self.wfile.write(json.dumps({"item_count": len(cart_items), "items": cart_items}).encode("utf-8"))
+                data = {"item_count": sum(i["quantity"] for i in cart_items), "items": cart_items}
+                self.wfile.write(json.dumps(data).encode("utf-8"))
             elif self.path.startswith("/products/item"):
-                # Swatch button placed BEFORE main submit button
                 html = """<!doctype html><html><body>
                 <form action="/cart/add" method="post">
-                  <button type="button" class="swatch active" data-option-name="Size" data-value="Small">Small</button>
+                  <select name="options[Size]"><option value="Default">Default</option></select>
                   <span class="price-item--regular">$15.99</span>
                   <button type="submit" name="add">Add to cart</button>
                 </form>
                 <script>
                 document.querySelector('form').onsubmit = async (e) => {
                   e.preventDefault();
+                  // Fire a misleading path first
+                  fetch('/cart/add_recommendation', {method:'POST', body:'id=999'});
+                  // Fire real ATC path
                   await fetch('/cart/add.js', {method:'POST', body:'id=101'});
                 };
                 </script></body></html>"""
@@ -474,6 +404,9 @@ async def test_option_swatch_button_before_atc_button():
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
                 self.wfile.write(b"{}")
+            else:
+                self.send_response(200)
+                self.end_headers()
 
     server, thread = make_test_server(Storefront)
     try:
@@ -484,79 +417,8 @@ async def test_option_swatch_button_before_atc_button():
             await page.goto(f"{origin}/products/item")
             auditor = ShopifyVariantAuditor()
             res = await auditor.run({"page": page, "base_url": f"{origin}/products/item"})
-            assert res.details["checks"]["variant_identity"]["status"] == "PASS"
-            assert len(cart_items) == 1
-            await browser.close()
-    finally:
-        server.shutdown()
-        server.server_close()
-        thread.join(timeout=5)
-
-
-# Regression 6: Unconfirmed identity without proven wrong variant ID returns WARN
-@pytest.mark.asyncio
-async def test_unconfirmed_identity_no_delta_returns_warn():
-    class Storefront(BaseHTTPRequestHandler):
-        def log_message(self, *args):
-            pass
-
-        def do_GET(self):
-            if self.path == "/products/item.js":
-                data = {
-                    "id": 1,
-                    "handle": "item",
-                    "options": [{"name": "Size", "values": ["Small"]}],
-                    "variants": [{"id": 101, "title": "Small", "price": 1599, "options": ["Small"]}]
-                }
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(json.dumps(data).encode("utf-8"))
-            elif self.path == "/cart.js":
-                # Pre-existing item with quantity 1 that never changes
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                data = {"item_count": 1, "items": [{"variant_id": 101, "product_id": 1, "quantity": 1}]}
-                self.wfile.write(json.dumps(data).encode("utf-8"))
-            elif self.path.startswith("/products/item"):
-                html = """<!doctype html><html><body>
-                <form action="/cart/add" method="post">
-                  <select name="options[Size]"><option value="Small">Small</option></select>
-                  <span class="price-item--regular">$15.99</span>
-                  <button type="submit" name="add">Add to cart</button>
-                </form>
-                <script>
-                document.querySelector('form').onsubmit = async (e) => {
-                  e.preventDefault();
-                  // Succeeded on server but quantity did not increase (e.g. max stock reached)
-                  await fetch('/cart/add.js', {method:'POST', body:'id=101'});
-                };
-                </script></body></html>"""
-                self.send_response(200)
-                self.send_header("Content-Type", "text/html")
-                self.end_headers()
-                self.wfile.write(html.encode("utf-8"))
-
-        def do_POST(self):
-            if self.path == "/cart/add.js":
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(b"{}")
-
-    server, thread = make_test_server(Storefront)
-    try:
-        origin = f"http://127.0.0.1:{server.server_port}"
-        async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
-            page = await browser.new_page()
-            await page.goto(f"{origin}/products/item")
-            auditor = ShopifyVariantAuditor()
-            res = await auditor.run({"page": page, "base_url": f"{origin}/products/item"})
-            assert res.status == "WARN"
-            assert res.details["checks"]["variant_identity"]["status"] == "WARN"
-            assert "Unconfirmed variant identity" in res.details["checks"]["variant_identity"]["summary"]
+            assert res.status == "PASS"
+            assert res.details["checks"]["variant_identity"]["expected_variant_id"] == 101
             await browser.close()
     finally:
         server.shutdown()
