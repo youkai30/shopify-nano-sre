@@ -1,5 +1,5 @@
 {
-  "url": "http://127.0.0.1:46447/products/pass",
+  "url": "http://127.0.0.1:41107/products/pass",
   "results": [
     {
       "skill_name": "shopify_variant_auditor",
@@ -23,12 +23,12 @@
             },
             "meta_before": {
               "status": "empty",
-              "captured_at": "2026-10-09T18:35:21.300791+00:00",
+              "captured_at": "2026-10-09T19:20:57.088737+00:00",
               "item_count": 0
             },
             "meta_after": {
               "status": "nonempty",
-              "captured_at": "2026-10-09T18:35:21.502330+00:00",
+              "captured_at": "2026-10-09T19:20:57.326945+00:00",
               "item_count": 1
             },
             "add_request_summary": {
@@ -45,7 +45,7 @@
           "variant_image": {
             "status": "PASS",
             "summary": "Active main image is loaded (naturalWidth=100) and matches variant image",
-            "active_src": "http://127.0.0.1:46447/img.svg",
+            "active_src": "http://127.0.0.1:41107/img.svg",
             "expected_src": "/img.svg"
           },
           "variant_availability_display": {

@@ -1,7 +1,7 @@
 """Stage 3 standalone CLI verification script for shopify_purchase_blocker_auditor.
 
 Tests PASS, FAIL, and WARN scenarios outside pytest using real Chromium.
-Asserts exit codes, skill name, status, reason_code, evidence, and privacy redaction.
+Asserts exit codes, skill name, status, reason_code, evidence, screenshot file existence, and privacy redaction.
 """
 
 import json
@@ -176,8 +176,13 @@ def main():
             for field in ("reason_code", "steps", "proven_purchase_conditions", "expected", "observed", "timestamp", "reproduction_steps", "network_cart_evidence"):
                 assert field in details, f"Missing required evidence field '{field}' in details"
 
-            # Check privacy - verify no sensitive tokens or passwords
-            dumped_details = json.dumps(details)
+            # Check that screenshot file reference exists on disk if provided
+            screenshot_path = details.get("redacted_screenshot")
+            if screenshot_path:
+                assert Path(screenshot_path).exists(), f"Screenshot file '{screenshot_path}' does not exist on disk!"
+
+            # Check privacy - verify no sensitive tokens or passwords in details or summary
+            dumped_details = json.dumps(details) + " " + skill_res["summary"]
             for forbidden in ("shpat_", "bearer ", "password=", "secret"):
                 assert forbidden not in dumped_details.lower(), f"Forbidden secret string '{forbidden}' found in output details"
 

@@ -1,5 +1,5 @@
 {
-  "url": "http://127.0.0.1:39415/products/warn",
+  "url": "http://127.0.0.1:42717/products/warn",
   "results": [
     {
       "skill_name": "shopify_purchase_blocker_auditor",
@@ -17,28 +17,28 @@
         "proven_purchase_conditions": {
           "product_handle": "warn",
           "target_variant_id": 301,
-          "selected_options": [
-            "Small"
-          ],
+          "proven_dom_options": {
+            "Size": "Small"
+          },
           "required_consents_satisfied": false
         },
         "expected": "Successful 200 OK network response incrementing target variant quantity",
         "observed": "Network status HTTP 500, quantity delta = 0",
-        "timestamp": "2026-10-09T18:34:58.780811+00:00",
+        "timestamp": "2026-10-09T19:20:28.181321+00:00",
         "reproduction_steps": [
-          "Navigate to http://127.0.0.1:39415/products/warn",
+          "Navigate to http://127.0.0.1:42717/products/warn",
           "Click Add to Cart"
         ],
-        "redacted_screenshot": "reports/screenshots/blocker_audit_atc_result_[REDACTED]98.png",
+        "redacted_screenshot": "reports/screenshots/blocker_audit_atc_result_1791573628.png",
         "network_cart_evidence": {
           "meta_before": {
             "status": "empty",
-            "captured_at": "2026-10-09T18:34:58.508623+00:00",
+            "captured_at": "2026-10-09T19:20:27.904531+00:00",
             "item_count": 0
           },
           "meta_after": {
             "status": "empty",
-            "captured_at": "2026-10-09T18:34:58.689425+00:00",
+            "captured_at": "2026-10-09T19:20:28.036419+00:00",
             "item_count": 0
           },
           "add_request_summary": {

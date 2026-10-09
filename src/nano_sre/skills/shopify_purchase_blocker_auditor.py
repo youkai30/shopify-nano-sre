@@ -20,15 +20,18 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _redact(text: Any) -> Any:
-    """Safely redact sensitive text, tokens, or credentials."""
-    if isinstance(text, str):
-        return _redactor.redact_text(text)
-    if isinstance(text, list):
-        return [_redact(item) for item in text]
-    if isinstance(text, dict):
-        return {k: _redact(v) for k, v in text.items()}
-    return text
+def _redact_value(val: Any) -> Any:
+    """Recursively redact strings, dicts, and lists without corrupting local screenshot file paths."""
+    if isinstance(val, str):
+        # Do not redact local screenshot paths or file paths
+        if val.startswith("reports/") or val.startswith("stage3_") or val.startswith("verification_output/") or "/" in val and val.endswith(".png"):
+            return val
+        return _redactor.redact_text(val)
+    if isinstance(val, list):
+        return [_redact_value(item) for item in val]
+    if isinstance(val, dict):
+        return {k: _redact_value(v) for k, v in val.items()}
+    return val
 
 
 def _get_locale_prefix_and_origin(url: str) -> tuple[str, str]:
@@ -69,17 +72,16 @@ def _is_valid_int(val: Any) -> bool:
 
 
 def _sanitize_url(url: str) -> str:
-    """Sanitize URL to remove credentials or tokens."""
+    """Sanitize URL to remove credentials or tokens without breaking scheme/host/path."""
     if not url:
         return ""
     parsed = urlparse(url)
-    if parsed.username or parsed.password or parsed.query:
-        netloc = parsed.hostname or ""
-        if parsed.port:
-            netloc += f":{parsed.port}"
-        # Strip query parameters that might contain tokens
-        return f"{parsed.scheme}://{netloc}{parsed.path}"
-    return url
+    netloc = parsed.hostname or ""
+    if parsed.port:
+        netloc += f":{parsed.port}"
+    scheme = parsed.scheme or "http"
+    path = parsed.path or "/"
+    return f"{scheme}://{netloc}{path}"
 
 
 class ShopifyPurchaseBlockerAuditor(Skill):
@@ -97,7 +99,7 @@ class ShopifyPurchaseBlockerAuditor(Skill):
                 skill_name=self.name(),
                 status="WARN",
                 summary="Missing page or base_url in context",
-                details=_redact({
+                details=_redact_value({
                     "reason_code": "MISSING_CONTEXT",
                     "steps": ["Initialization failed: missing page or base_url"],
                     "proven_purchase_conditions": {},
@@ -120,16 +122,19 @@ class ShopifyPurchaseBlockerAuditor(Skill):
             js_errors.append(str(error))
 
         try:
-            # Stage 3 Genuine Desktop Context setup if incoming page is mobile
+            # Desktop flow setup preserving session cookies
             try:
                 is_mobile = await page.evaluate("() => matchMedia('(max-width: 767px)').matches || ('ontouchstart' in window)")
                 if is_mobile and hasattr(page, "context") and page.context and hasattr(page.context, "browser") and page.context.browser:
+                    cookies = await page.context.cookies()
                     created_desktop_context = await page.context.browser.new_context(
                         viewport={"width": 1280, "height": 800},
                         user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36",
                         is_mobile=False,
                         has_touch=False,
                     )
+                    if cookies:
+                        await created_desktop_context.add_cookies(cookies)
                     created_desktop_page = await created_desktop_context.new_page()
                     audit_page = created_desktop_page
                     await audit_page.goto(page.url or base_url, wait_until="commit", timeout=60000)
@@ -184,7 +189,7 @@ class ShopifyPurchaseBlockerAuditor(Skill):
                     skill_name=self.name(),
                     status="WARN",
                     summary="Could not discover a product handle to audit purchase blockers",
-                    details=_redact({
+                    details=_redact_value({
                         "reason_code": "PRODUCT_NOT_DISCOVERED",
                         "steps": steps,
                         "proven_purchase_conditions": {},
@@ -214,7 +219,7 @@ class ShopifyPurchaseBlockerAuditor(Skill):
                     skill_name=self.name(),
                     status="WARN",
                     summary=f"Could not fetch product JSON from {ajax_url}",
-                    details=_redact({
+                    details=_redact_value({
                         "reason_code": "PRODUCT_JSON_UNAVAILABLE",
                         "steps": steps,
                         "proven_purchase_conditions": {},
@@ -242,7 +247,7 @@ class ShopifyPurchaseBlockerAuditor(Skill):
                     skill_name=self.name(),
                     status="PASS",
                     summary="Product has no available variants to purchase; non-blocker for unavailable inventory",
-                    details=_redact({
+                    details=_redact_value({
                         "reason_code": "NONE",
                         "steps": steps + ["All product variants are marked unavailable"],
                         "proven_purchase_conditions": {"available_variants_count": 0},
@@ -267,19 +272,19 @@ class ShopifyPurchaseBlockerAuditor(Skill):
             if dismissed_popup:
                 steps.append("Dismissed modal overlay/popup")
 
-            # Check unfulfilled customization / personalization requirements
+            # Check unfulfilled customization / personalization / HTML field validity requirements
             unfulfilled_req = await self._check_unfulfilled_customization_fields(audit_page, main_form)
             if unfulfilled_req:
                 return SkillResult(
                     skill_name=self.name(),
                     status="WARN",
-                    summary=f"Mandatory customization requirement unfulfilled ({unfulfilled_req})",
-                    details=_redact({
+                    summary=_redact_value(f"Mandatory customization requirement unfulfilled ({unfulfilled_req})"),
+                    details=_redact_value({
                         "reason_code": "UNFULFILLED_PURCHASE_REQUIREMENT",
                         "steps": steps + [f"Unfulfilled requirement: {unfulfilled_req}"],
                         "proven_purchase_conditions": {"customization_required": True, "field": unfulfilled_req},
                         "expected": "User input provided for mandatory customization field before purchasing",
-                        "observed": f"Field '{unfulfilled_req}' requires user input",
+                        "observed": f"Field '{unfulfilled_req}' requires user input or constraint satisfaction",
                         "timestamp": _now(),
                         "reproduction_steps": [f"Navigate to {current_url}", "Check required personalization fields"],
                         "redacted_screenshot": None,
@@ -288,7 +293,7 @@ class ShopifyPurchaseBlockerAuditor(Skill):
                 )
 
             # Option selection & DOM selection proof
-            option_success, option_error = await self._select_variant_options_in_dom(
+            option_success, option_error, proven_dom_options = await self._select_variant_options_in_dom(
                 audit_page, main_form, target_variant, options_list
             )
             satisfied_consents = await self._satisfy_required_consents(audit_page, main_form)
@@ -298,22 +303,24 @@ class ShopifyPurchaseBlockerAuditor(Skill):
             proven_conditions = {
                 "product_handle": handle,
                 "target_variant_id": target_variant.get("id"),
-                "selected_options": target_variant.get("options", []),
+                "proven_dom_options": proven_dom_options,
                 "required_consents_satisfied": satisfied_consents > 0,
             }
 
             if not option_success:
-                screenshot_path = await self._take_screenshot(audit_page, "option_unselectable")
+                status_to_return = "FAIL" if "disabled" in option_error.lower() else "WARN"
+                reason_to_return = "MANDATORY_OPTION_UNSELECTABLE" if status_to_return == "FAIL" else "UNPROVEN_OPTION_PATTERN"
+                screenshot_path = await self._take_screenshot(audit_page, "option_issue")
                 return SkillResult(
                     skill_name=self.name(),
-                    status="FAIL",
-                    summary=f"Mandatory product option could not be selected in UI: {option_error}",
-                    details=_redact({
-                        "reason_code": "MANDATORY_OPTION_UNSELECTABLE",
-                        "steps": steps + [f"Failed option selection: {option_error}"],
+                    status=status_to_return,
+                    summary=_redact_value(f"Option selection issue: {option_error}"),
+                    details=_redact_value({
+                        "reason_code": reason_to_return,
+                        "steps": steps + [f"Option selection issue: {option_error}"],
                         "proven_purchase_conditions": proven_conditions,
                         "expected": "Mandatory option can be interacted with and selected",
-                        "observed": f"Option selection failed: {option_error}",
+                        "observed": f"Option selection failed or unproven: {option_error}",
                         "timestamp": _now(),
                         "reproduction_steps": [f"Navigate to {current_url}", f"Select option values for variant {target_variant.get('id')}"],
                         "redacted_screenshot": screenshot_path,
@@ -331,7 +338,7 @@ class ShopifyPurchaseBlockerAuditor(Skill):
                     skill_name=self.name(),
                     status="WARN",
                     summary="Main product form or Add to Cart button binding unconfirmed",
-                    details=_redact({
+                    details=_redact_value({
                         "reason_code": "BUTTON_MISSING_OR_DISABLED",
                         "steps": steps + ["Could not establish clear Add to Cart button binding inside main product form"],
                         "proven_purchase_conditions": proven_conditions,
@@ -358,8 +365,8 @@ class ShopifyPurchaseBlockerAuditor(Skill):
                 return SkillResult(
                     skill_name=self.name(),
                     status="FAIL",
-                    summary=f"Add to Cart button blocked by un-dismissable overlay ({overlay_desc})",
-                    details=_redact({
+                    summary=_redact_value(f"Add to Cart button blocked by un-dismissable overlay ({overlay_desc})"),
+                    details=_redact_value({
                         "reason_code": "BUTTON_BLOCKED_BY_OVERLAY",
                         "steps": steps + [f"Add to Cart button blocked by overlay: {overlay_desc}"],
                         "proven_purchase_conditions": proven_conditions,
@@ -380,7 +387,7 @@ class ShopifyPurchaseBlockerAuditor(Skill):
                     skill_name=self.name(),
                     status="WARN",
                     summary=f"Pre-cart snapshot failed (status={meta_before['status']}); unable to prove cart addition",
-                    details=_redact({
+                    details=_redact_value({
                         "reason_code": "UNRESOLVED_PRE_CART_STATE",
                         "steps": steps + [f"Pre-cart read returned status: {meta_before['status']}"],
                         "proven_purchase_conditions": proven_conditions,
@@ -446,15 +453,11 @@ class ShopifyPurchaseBlockerAuditor(Skill):
             # Post-cart snapshot
             meta_after, items_after = await self._fetch_cart_snapshot(audit_page, origin, locale)
 
-            audit_page.remove_listener("request", on_request)
-            audit_page.remove_listener("response", on_response)
-
             expected_vid = target_variant.get("id")
             q_before = sum(item["quantity"] for item in items_before if item["variant_id"] == expected_vid)
             q_after = sum(item["quantity"] for item in items_after if item["variant_id"] == expected_vid)
             delta = q_after - q_before
 
-            # Delta for all other variants
             other_deltas = {}
             for item in items_after:
                 vid = item["variant_id"]
@@ -482,7 +485,7 @@ class ShopifyPurchaseBlockerAuditor(Skill):
                     skill_name=self.name(),
                     status="PASS",
                     summary="Purchase blocker audit passed: target product variant added to cart successfully",
-                    details=_redact({
+                    details=_redact_value({
                         "reason_code": "NONE",
                         "steps": steps + ["Confirmed target product variant addition to cart"],
                         "proven_purchase_conditions": proven_conditions,
@@ -501,8 +504,8 @@ class ShopifyPurchaseBlockerAuditor(Skill):
                 return SkillResult(
                     skill_name=self.name(),
                     status="FAIL",
-                    summary=f"Added wrong variant ID {added_other_vid} instead of expected {expected_vid}",
-                    details=_redact({
+                    summary=_redact_value(f"Added wrong variant ID {added_other_vid} instead of expected {expected_vid}"),
+                    details=_redact_value({
                         "reason_code": "WRONG_VARIANT_ADDED",
                         "steps": steps + [f"Added wrong variant ID {added_other_vid}"],
                         "proven_purchase_conditions": proven_conditions,
@@ -517,17 +520,22 @@ class ShopifyPurchaseBlockerAuditor(Skill):
 
             # 3. Request was NOT captured AND click failed / error occurred before request -> FAIL / JS_ERROR
             if not add_request_data["captured"]:
-                if errors_after_click:
+                # Differentiate between handler errors in purchase flow vs unrelated analytics errors
+                handler_errors = [
+                    e for e in errors_after_click
+                    if not any(term in e.lower() for term in ("analytics", "pixel", "tracking", "gtm", "facebook"))
+                ]
+                if handler_errors:
                     return SkillResult(
                         skill_name=self.name(),
                         status="FAIL",
-                        summary=f"JavaScript error causally prevented purchase request dispatch: {errors_after_click[0]}",
-                        details=_redact({
+                        summary=_redact_value(f"JavaScript error causally prevented purchase request dispatch: {handler_errors[0]}"),
+                        details=_redact_value({
                             "reason_code": "JS_ERROR_BLOCKING_PURCHASE",
-                            "steps": steps + [f"JavaScript error prevented request: {errors_after_click[0]}"],
+                            "steps": steps + [f"JavaScript error prevented request: {handler_errors[0]}"],
                             "proven_purchase_conditions": proven_conditions,
                             "expected": "Clean click execution dispatching Add to Cart request",
-                            "observed": f"JS error before request: {errors_after_click[0]}",
+                            "observed": f"JS error before request: {handler_errors[0]}",
                             "timestamp": _now(),
                             "reproduction_steps": [f"Navigate to {current_url}", "Click Add to Cart"],
                             "redacted_screenshot": screenshot_path,
@@ -539,8 +547,8 @@ class ShopifyPurchaseBlockerAuditor(Skill):
                     return SkillResult(
                         skill_name=self.name(),
                         status="FAIL",
-                        summary=f"Clicking Add to Cart button failed: {click_error_msg}",
-                        details=_redact({
+                        summary=_redact_value(f"Clicking Add to Cart button failed: {click_error_msg}"),
+                        details=_redact_value({
                             "reason_code": "ATC_CLICK_FAILED",
                             "steps": steps + [f"ATC click exception: {click_error_msg}"],
                             "proven_purchase_conditions": proven_conditions,
@@ -553,13 +561,14 @@ class ShopifyPurchaseBlockerAuditor(Skill):
                         }),
                     )
 
+                # Unproven cause when click succeeded but no request captured (e.g. analytics error or quiet failure) -> WARN
                 return SkillResult(
                     skill_name=self.name(),
-                    status="FAIL",
-                    summary="Add to Cart click executed but failed to trigger network request or update cart",
-                    details=_redact({
-                        "reason_code": "ATC_CLICK_FAILED",
-                        "steps": steps + ["ATC button clicked, but no network request was triggered"],
+                    status="WARN",
+                    summary="Add to Cart click executed but request dispatch could not be confirmed",
+                    details=_redact_value({
+                        "reason_code": "NETWORK_OR_RESPONSE_UNRESOLVED",
+                        "steps": steps + ["ATC button clicked, but no network request was captured"],
                         "proven_purchase_conditions": proven_conditions,
                         "expected": "ATC click triggers add request",
                         "observed": "Click produced no network request",
@@ -572,39 +581,21 @@ class ShopifyPurchaseBlockerAuditor(Skill):
 
             # 4. Request WAS captured, but returned non-200 or 200 without quantity increase -> WARN
             status_code = add_request_data["status"]
-            if status_code is None or status_code != 200 or delta == 0:
-                status_desc = f"HTTP {status_code}" if status_code else "unresolved response / timeout"
-                summary_msg = (
-                    f"Add to Cart request returned {status_desc} but target variant quantity did not increase"
-                    if status_code == 200 else f"Add to Cart network request was inconclusive ({status_desc})"
-                )
-                return SkillResult(
-                    skill_name=self.name(),
-                    status="WARN",
-                    summary=summary_msg,
-                    details=_redact({
-                        "reason_code": "NETWORK_OR_RESPONSE_UNRESOLVED",
-                        "steps": steps + [f"Network request result: {status_desc}, target quantity delta: {delta}"],
-                        "proven_purchase_conditions": proven_conditions,
-                        "expected": "Successful 200 OK network response incrementing target variant quantity",
-                        "observed": f"Network status {status_desc}, quantity delta = {delta}",
-                        "timestamp": _now(),
-                        "reproduction_steps": [f"Navigate to {current_url}", "Click Add to Cart"],
-                        "redacted_screenshot": screenshot_path,
-                        "network_cart_evidence": cart_evidence,
-                    }),
-                )
-
+            status_desc = f"HTTP {status_code}" if status_code else "unresolved response / timeout"
+            summary_msg = (
+                f"Add to Cart request returned {status_desc} but target variant quantity did not increase"
+                if status_code == 200 else f"Add to Cart network request was inconclusive ({status_desc})"
+            )
             return SkillResult(
                 skill_name=self.name(),
                 status="WARN",
-                summary="Add to Cart completed but cart quantity increase was unconfirmed",
-                details=_redact({
+                summary=_redact_value(summary_msg),
+                details=_redact_value({
                     "reason_code": "NETWORK_OR_RESPONSE_UNRESOLVED",
-                    "steps": steps + ["Quantity delta remained 0"],
+                    "steps": steps + [f"Network request result: {status_desc}, target quantity delta: {delta}"],
                     "proven_purchase_conditions": proven_conditions,
-                    "expected": "Cart quantity incremented by at least 1",
-                    "observed": f"Quantity delta = {delta}",
+                    "expected": "Successful 200 OK network response incrementing target variant quantity",
+                    "observed": f"Network status {status_desc}, quantity delta = {delta}",
                     "timestamp": _now(),
                     "reproduction_steps": [f"Navigate to {current_url}", "Click Add to Cart"],
                     "redacted_screenshot": screenshot_path,
@@ -617,8 +608,8 @@ class ShopifyPurchaseBlockerAuditor(Skill):
             return SkillResult(
                 skill_name=self.name(),
                 status="WARN",
-                summary=f"Purchase blocker auditor encountered internal execution issue: {type(e).__name__}",
-                details=_redact({
+                summary=_redact_value(f"Purchase blocker auditor encountered internal execution issue: {type(e).__name__}"),
+                details=_redact_value({
                     "reason_code": "INTERNAL_AUDITOR_ERROR",
                     "steps": steps + [f"Internal error: {type(e).__name__}"],
                     "proven_purchase_conditions": {},
@@ -631,7 +622,10 @@ class ShopifyPurchaseBlockerAuditor(Skill):
                 }),
             )
         finally:
-            audit_page.remove_listener("pageerror", on_page_error)
+            try:
+                audit_page.remove_listener("pageerror", on_page_error)
+            except Exception:
+                pass
             if created_desktop_context:
                 try:
                     await created_desktop_context.close()
@@ -639,19 +633,19 @@ class ShopifyPurchaseBlockerAuditor(Skill):
                     pass
 
     async def _check_unfulfilled_customization_fields(self, page, main_form) -> Optional[str]:
-        """Check for mandatory personalization/text inputs requiring user input."""
+        """Check for mandatory personalization/text inputs requiring user input or violating HTML validity."""
         form_loc = main_form if await main_form.count() > 0 else page
         try:
             inputs = form_loc.locator(
-                'input[required]:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="submit"]), textarea[required], [name*="properties"][required]'
+                'input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="submit"]), textarea, [name*="properties"]'
             )
             count = await inputs.count()
             for i in range(count):
                 inp = inputs.nth(i)
                 if await inp.is_visible():
-                    val = await inp.evaluate("el => el.value")
-                    if not val or not val.strip():
-                        name_attr = await inp.get_attribute("name") or await inp.get_attribute("placeholder") or "customization field"
+                    is_valid = await inp.evaluate("el => el.checkValidity ? el.checkValidity() : true")
+                    if not is_valid:
+                        name_attr = await inp.get_attribute("name") or await inp.get_attribute("placeholder") or "input constraint"
                         return name_attr
         except Exception as e:
             logger.debug("Customization check note: %s", e)
@@ -684,10 +678,11 @@ class ShopifyPurchaseBlockerAuditor(Skill):
 
     async def _select_variant_options_in_dom(
         self, page, main_form, target_variant: dict[str, Any], options_list: list[Any]
-    ) -> tuple[bool, str]:
-        """Select option values required for target_variant via UI interaction and verify DOM selection."""
+    ) -> tuple[bool, str, dict[str, str]]:
+        """Select option values required for target_variant via UI interaction and prove DOM selection strictly."""
         form_loc = main_form if await main_form.count() > 0 else page
         variant_options = target_variant.get("options", [])
+        proven_dom_options = {}
 
         option_names = []
         for opt in options_list:
@@ -716,10 +711,10 @@ class ShopifyPurchaseBlockerAuditor(Skill):
                         await sel.select_option(value=val, timeout=1000)
                     except Exception:
                         pass
-                # Verify DOM selection strictly
                 cur_val = await sel.evaluate("el => el.value")
                 if cur_val and str(cur_val).lower() == str(val).lower():
                     selected = True
+                    proven_dom_options[opt_name] = str(cur_val)
                     break
 
             if selected:
@@ -733,15 +728,20 @@ class ShopifyPurchaseBlockerAuditor(Skill):
                 try:
                     await btn_loc.click(timeout=2000)
                     selected = True
+                    proven_dom_options[opt_name] = str(val)
                 except Exception:
                     pass
 
             if not selected and len(variant_options) > 0:
                 disabled_elem = form_loc.locator(f'[value="{val}"][disabled], button:has-text("{val}")[disabled]').first
                 if await disabled_elem.count() > 0:
-                    return False, f"Option element '{opt_name}={val}' is disabled or non-interactive in UI"
+                    return False, f"Option element '{opt_name}={val}' is disabled or non-interactive in UI", proven_dom_options
 
-        return True, ""
+        all_proven = len(option_names) == 0 or len(proven_dom_options) == len(option_names)
+        if not all_proven and len(option_names) > 0:
+            return False, f"Option selection in DOM could not be proven for all options ({proven_dom_options})", proven_dom_options
+
+        return True, "", proven_dom_options
 
     async def _satisfy_required_consents(self, page, main_form) -> int:
         """Check mandatory terms/consent checkboxes inside product form or page."""
@@ -878,9 +878,22 @@ class ShopifyPurchaseBlockerAuditor(Skill):
         return meta, items
 
     async def _take_screenshot(self, page, tag: str) -> Optional[str]:
-        """Take screenshot and return path."""
+        """Take screenshot with PII masking and return valid file path."""
         try:
             os.makedirs("reports/screenshots", exist_ok=True)
+            # Mask visible PII elements on page prior to screenshot
+            try:
+                await page.evaluate("""
+                    () => {
+                        const selector = 'input[type="email"], input[type="tel"], [data-pii], .user-pii';
+                        document.querySelectorAll(selector).forEach(el => {
+                            el.style.filter = 'blur(5px)';
+                        });
+                    }
+                """)
+            except Exception:
+                pass
+
             filename = f"blocker_audit_{tag}_{int(datetime.now().timestamp())}.png"
             path = os.path.join("reports/screenshots", filename)
             await page.screenshot(path=path, full_page=False)

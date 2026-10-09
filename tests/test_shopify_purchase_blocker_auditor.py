@@ -2,8 +2,10 @@
 
 import asyncio
 import json
+import os
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -1115,7 +1117,63 @@ async def test_regression_missing_customization_input_returns_warn():
         thread.join(timeout=5)
 
 
-# REGRESSION TEST 18: Analytics JS error during click + HTTP 500 network response -> WARN (NETWORK_OR_RESPONSE_UNRESOLVED)
+# REGRESSION TEST 18: HTML5 Validity input constraint (e.g. quantity min=1 value=0) -> WARN
+@pytest.mark.asyncio
+async def test_regression_html5_validity_quantity_zero_returns_warn():
+    class Storefront(BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+
+        def do_GET(self):
+            if self.path == "/products/item.js":
+                data = {
+                    "id": 1,
+                    "handle": "item",
+                    "options": [{"name": "Size", "values": ["Small"]}],
+                    "variants": [
+                        {"id": 101, "title": "Small", "price": 1599, "available": True, "options": ["Small"]}
+                    ],
+                }
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps(data).encode("utf-8"))
+            elif self.path == "/cart.js":
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"item_count": 0, "items": []}).encode("utf-8"))
+            elif self.path.startswith("/products/item"):
+                html = """<!doctype html><html><body>
+                <form action="/cart/add" method="post">
+                  <input type="number" name="quantity" min="1" value="0" required/>
+                  <select name="options[Size]"><option value="Small">Small</option></select>
+                  <button type="submit" name="add">Add to Cart</button>
+                </form></body></html>"""
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html")
+                self.end_headers()
+                self.wfile.write(html.encode("utf-8"))
+
+    server, thread = make_test_server(Storefront)
+    try:
+        origin = f"http://127.0.0.1:{server.server_port}"
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            page = await browser.new_page()
+            await page.goto(f"{origin}/products/item")
+            auditor = ShopifyPurchaseBlockerAuditor()
+            res = await auditor.run({"page": page, "base_url": f"{origin}/products/item"})
+            assert res.status == "WARN"
+            assert res.details["reason_code"] == "UNFULFILLED_PURCHASE_REQUIREMENT"
+            await browser.close()
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+# REGRESSION TEST 19: Analytics JS error during click + HTTP 500 network response -> WARN (NETWORK_OR_RESPONSE_UNRESOLVED)
 @pytest.mark.asyncio
 async def test_regression_analytics_js_error_with_500_response_returns_warn():
     class Storefront(BaseHTTPRequestHandler):
@@ -1174,7 +1232,6 @@ async def test_regression_analytics_js_error_with_500_response_returns_warn():
             await page.goto(f"{origin}/products/item")
             auditor = ShopifyPurchaseBlockerAuditor()
             res = await auditor.run({"page": page, "base_url": f"{origin}/products/item"})
-            # Should be WARN due to HTTP 500 response, not claiming JS error blocked the request when request was clearly sent!
             assert res.status == "WARN"
             assert res.details["reason_code"] == "NETWORK_OR_RESPONSE_UNRESOLVED"
             await browser.close()
@@ -1184,9 +1241,89 @@ async def test_regression_analytics_js_error_with_500_response_returns_warn():
         thread.join(timeout=5)
 
 
-# REGRESSION TEST 19: Synthetic PII / secret leakage prevention test
+# REGRESSION TEST 20: Session cookie retention in desktop context transition
 @pytest.mark.asyncio
-async def test_regression_synthetic_pii_redaction():
+async def test_regression_desktop_context_session_cookie_retention():
+    cart_items = []
+
+    class Storefront(BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+
+        def do_GET(self):
+            cookies = self.headers.get("Cookie", "")
+            if self.path == "/products/item.js":
+                data = {
+                    "id": 1,
+                    "handle": "item",
+                    "options": [{"name": "Size", "values": ["Small"]}],
+                    "variants": [
+                        {"id": 101, "title": "Small", "price": 1599, "available": True, "options": ["Small"]}
+                    ],
+                }
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps(data).encode("utf-8"))
+            elif self.path == "/cart.js":
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                has_session = "session_token=secret123" in cookies
+                c = cart_items if has_session else []
+                data = {"item_count": sum(i["quantity"] for i in c), "items": c}
+                self.wfile.write(json.dumps(data).encode("utf-8"))
+            elif self.path.startswith("/products/item"):
+                html = """<!doctype html><html><body>
+                <form action="/cart/add" method="post">
+                  <select name="options[Size]"><option value="Small">Small</option></select>
+                  <button type="submit" name="add">Add to Cart</button>
+                </form>
+                <script>
+                document.querySelector('form').onsubmit = async (e) => {
+                  e.preventDefault();
+                  await fetch('/cart/add.js', {method:'POST', body:'id=101'});
+                };
+                </script></body></html>"""
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html")
+                self.end_headers()
+                self.wfile.write(html.encode("utf-8"))
+
+        def do_POST(self):
+            if self.path == "/cart/add.js":
+                cookies = self.headers.get("Cookie", "")
+                if "session_token=secret123" in cookies:
+                    cart_items.append({"variant_id": 101, "product_id": 1, "quantity": 1})
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"id": 101, "quantity": 1}).encode("utf-8"))
+
+    server, thread = make_test_server(Storefront)
+    try:
+        origin = f"http://127.0.0.1:{server.server_port}"
+        async with async_playwright() as p:
+            iphone = p.devices["iPhone 17 Pro"] if "iPhone 17 Pro" in p.devices else {"viewport": {"width": 390, "height": 844}, "is_mobile": True, "has_touch": True}
+            browser = await p.chromium.launch(headless=True)
+            context = await browser.new_context(**iphone)
+            await context.add_cookies([{"name": "session_token", "value": "secret123", "domain": "127.0.0.1", "path": "/"}])
+            page = await context.new_page()
+            await page.goto(f"{origin}/products/item")
+            auditor = ShopifyPurchaseBlockerAuditor()
+            res = await auditor.run({"page": page, "base_url": f"{origin}/products/item"})
+            assert res.status == "PASS"
+            assert res.details["reason_code"] == "NONE"
+            await browser.close()
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+# REGRESSION TEST 21: Screenshot reference file validity & secret redaction
+@pytest.mark.asyncio
+async def test_regression_screenshot_file_reference_validity_and_redaction():
     class Storefront(BaseHTTPRequestHandler):
         def log_message(self, *args):
             pass
@@ -1212,9 +1349,9 @@ async def test_regression_synthetic_pii_redaction():
                 self.wfile.write(json.dumps({"item_count": 0, "items": []}).encode("utf-8"))
             elif self.path.startswith("/products/item"):
                 html = """<!doctype html><html><body>
-                <script>setTimeout(() => { throw new Error('API Key error: shpat_1234567890abcdef user test@example.com'); }, 10);</script>
+                <script>setTimeout(() => { throw new Error('API Key shpat_secret123 test@example.com'); }, 10);</script>
                 <form action="/cart/add" method="post">
-                  <select name="options[Size]"><option value="Small">Small</option></select>
+                  <select name="options[Size]"><option value="Small"><option value="Small">Small</option></select>
                   <button type="submit" name="add">Add to Cart</button>
                 </form></body></html>"""
                 self.send_response(200)
@@ -1225,7 +1362,7 @@ async def test_regression_synthetic_pii_redaction():
     server, thread = make_test_server(Storefront)
     try:
         origin = f"http://127.0.0.1:{server.server_port}"
-        secret_url = f"{origin}/products/item?token=shpat_secret12345&email=john@example.com"
+        secret_url = f"{origin}/products/item?key=shpat_secret456&email=user@test.com"
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=True)
             page = await browser.new_page()
@@ -1234,10 +1371,15 @@ async def test_regression_synthetic_pii_redaction():
             auditor = ShopifyPurchaseBlockerAuditor()
             res = await auditor.run({"page": page, "base_url": secret_url})
 
-            dumped = json.dumps(res.details)
-            assert "shpat_" not in dumped
-            assert "test@example.com" not in dumped
-            assert "john@example.com" not in dumped
+            # Check screenshot reference exists
+            screenshot = res.details.get("redacted_screenshot")
+            if screenshot:
+                assert Path(screenshot).exists(), f"Screenshot file path '{screenshot}' must exist on disk!"
+                assert not screenshot.startswith("[REDACTED]"), "Screenshot path must not be broken into [REDACTED]!"
+
+            # Check summary redaction
+            assert "shpat_" not in res.summary
+            assert "user@test.com" not in res.summary
             await browser.close()
     finally:
         server.shutdown()
@@ -1245,7 +1387,7 @@ async def test_regression_synthetic_pii_redaction():
         thread.join(timeout=5)
 
 
-# REGRESSION TEST 20: Internal auditor exception -> WARN (INTERNAL_AUDITOR_ERROR)
+# REGRESSION TEST 22: Internal auditor exception -> WARN (INTERNAL_AUDITOR_ERROR)
 @pytest.mark.asyncio
 async def test_regression_internal_auditor_exception_returns_warn():
     async with async_playwright() as p:

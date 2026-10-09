@@ -1,5 +1,5 @@
 {
-  "url": "http://127.0.0.1:46447/products/warn",
+  "url": "http://127.0.0.1:41107/products/warn",
   "results": [
     {
       "skill_name": "shopify_variant_auditor",
