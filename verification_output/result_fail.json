@@ -1,0 +1,51 @@
+{
+  "url": "http://127.0.0.1:44709/products/fail",
+  "results": [
+    {
+      "skill_name": "shopify_variant_auditor",
+      "status": "FAIL",
+      "summary": "Variant audit failed: variant_identity",
+      "details": {
+        "steps": [
+          "Auditing product handle: fail"
+        ],
+        "product_handle": "fail",
+        "expected_variant_id": 202,
+        "checks": {
+          "variant_identity": {
+            "status": "FAIL",
+            "summary": "Added wrong variant ID 201 instead of expected 202",
+            "expected_variant_id": 202,
+            "added_variant_id": 201,
+            "deltas": {
+              "201": 1,
+              "202": 0
+            },
+            "meta_before": {
+              "status": "empty",
+              "captured_at": "2026-10-10T08:52:57.645352+00:00",
+              "item_count": 0
+            },
+            "meta_after": {
+              "status": "nonempty",
+              "captured_at": "2026-10-10T08:52:57.860314+00:00",
+              "item_count": 1
+            }
+          },
+          "variant_price": {
+            "status": "WARN",
+            "summary": "Option selection for target variant was unproven or incomplete"
+          },
+          "variant_image": {
+            "status": "WARN",
+            "summary": "Option selection for target variant was unproven or incomplete"
+          },
+          "variant_availability_display": {
+            "status": "NOT_APPLICABLE",
+            "summary": "No unavailable variants exist in product data"
+          }
+        }
+      }
+    }
+  ]
+}

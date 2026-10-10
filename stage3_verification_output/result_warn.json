@@ -1,0 +1,53 @@
+{
+  "url": "http://127.0.0.1:40633/products/warn",
+  "results": [
+    {
+      "skill_name": "shopify_purchase_blocker_auditor",
+      "status": "WARN",
+      "summary": "Add to Cart network request was inconclusive (HTTP 500)",
+      "details": {
+        "reason_code": "NETWORK_OR_RESPONSE_UNRESOLVED",
+        "steps": [
+          "Auditing product handle: warn",
+          "Successfully selected required variant options",
+          "Scrolled to Add to Cart button",
+          "Clicked Add to Cart button",
+          "Network request result: HTTP 500, target quantity delta: 0"
+        ],
+        "proven_purchase_conditions": {
+          "product_handle": "warn",
+          "target_variant_id": 301,
+          "proven_dom_options": {
+            "Size": "Small"
+          },
+          "required_consents_satisfied": false
+        },
+        "expected": "Successful 200 OK network response incrementing target variant quantity",
+        "observed": "Network status HTTP 500, quantity delta = 0",
+        "timestamp": "2026-10-10T09:44:11.792440+00:00",
+        "reproduction_steps": [
+          "Navigate to http://127.0.0.1:40633/products/warn",
+          "Click Add to Cart"
+        ],
+        "redacted_screenshot": "reports/screenshots/blocker_audit_atc_result_1791625451.png",
+        "network_cart_evidence": {
+          "meta_before": {
+            "status": "empty",
+            "captured_at": "2026-10-10T09:44:11.400350+00:00",
+            "item_count": 0
+          },
+          "meta_after": {
+            "status": "empty",
+            "captured_at": "2026-10-10T09:44:11.528934+00:00",
+            "item_count": 0
+          },
+          "add_request_summary": {
+            "captured": true,
+            "status": 500
+          },
+          "delta_quantity": 0
+        }
+      }
+    }
+  ]
+}
