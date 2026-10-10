@@ -102,6 +102,193 @@ async def test_purchase_blocker_healthy_flow_pass():
         thread.join(timeout=5)
 
 
+# REGRESSION TEST 24: HTTP 200 response with unchanged/empty cart -> WARN
+@pytest.mark.asyncio
+async def test_explicit_http_200_empty_cart_returns_warn():
+    class Storefront(BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+
+        def do_GET(self):
+            if self.path == "/products/item.js":
+                data = {
+                    "id": 1,
+                    "handle": "item",
+                    "options": [{"name": "Size", "values": ["Small"]}],
+                    "variants": [{"id": 101, "title": "Small", "price": 1599, "available": True, "options": ["Small"]}],
+                }
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps(data).encode("utf-8"))
+            elif self.path == "/cart.js":
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"item_count": 0, "items": []}).encode("utf-8"))
+            elif self.path.startswith("/products/item"):
+                html = """<!doctype html><html><body>
+                <form action="/cart/add" method="post">
+                  <select name="options[Size]"><option value="Small">Small</option></select>
+                  <button type="submit" name="add">Add to Cart</button>
+                </form>
+                <script>
+                document.querySelector('form').onsubmit = async (e) => {
+                  e.preventDefault();
+                  // Returns 200 OK without adding to server cart session
+                  await fetch('/cart/add.js', {method:'POST', body:'id=101'});
+                };
+                </script></body></html>"""
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html")
+                self.end_headers()
+                self.wfile.write(html.encode("utf-8"))
+
+        def do_POST(self):
+            if self.path == "/cart/add.js":
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"id": 101, "quantity": 1}).encode("utf-8"))
+
+    server, thread = make_test_server(Storefront)
+    try:
+        origin = f"http://127.0.0.1:{server.server_port}"
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            page = await browser.new_page()
+            await page.goto(f"{origin}/products/item")
+            auditor = ShopifyPurchaseBlockerAuditor()
+            res = await auditor.run({"page": page, "base_url": f"{origin}/products/item"})
+            assert res.status == "WARN"
+            assert res.details["reason_code"] == "NETWORK_OR_RESPONSE_UNRESOLVED"
+            await browser.close()
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+# REGRESSION TEST 25: Unfulfilled mandatory customization field -> WARN
+@pytest.mark.asyncio
+async def test_explicit_unfulfilled_customization_field_returns_warn():
+    class Storefront(BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+
+        def do_GET(self):
+            if self.path == "/products/item.js":
+                data = {
+                    "id": 1,
+                    "handle": "item",
+                    "options": [{"name": "Size", "values": ["Small"]}],
+                    "variants": [{"id": 101, "title": "Small", "price": 1599, "available": True, "options": ["Small"]}],
+                }
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps(data).encode("utf-8"))
+            elif self.path == "/cart.js":
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"item_count": 0, "items": []}).encode("utf-8"))
+            elif self.path.startswith("/products/item"):
+                html = """<!doctype html><html><body>
+                <form action="/cart/add" method="post">
+                  <input type="text" name="properties[EngravingText]" required placeholder="Mandatory Engraving"/>
+                  <select name="options[Size]"><option value="Small">Small</option></select>
+                  <button type="submit" name="add">Add to Cart</button>
+                </form></body></html>"""
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html")
+                self.end_headers()
+                self.wfile.write(html.encode("utf-8"))
+
+    server, thread = make_test_server(Storefront)
+    try:
+        origin = f"http://127.0.0.1:{server.server_port}"
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            page = await browser.new_page()
+            await page.goto(f"{origin}/products/item")
+            auditor = ShopifyPurchaseBlockerAuditor()
+            res = await auditor.run({"page": page, "base_url": f"{origin}/products/item"})
+            assert res.status == "WARN"
+            assert res.details["reason_code"] == "UNFULFILLED_PURCHASE_REQUIREMENT"
+            await browser.close()
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+# REGRESSION TEST 26: Analytics error during click + HTTP 500 response -> WARN
+@pytest.mark.asyncio
+async def test_explicit_analytics_error_with_http_500_returns_warn():
+    class Storefront(BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+
+        def do_GET(self):
+            if self.path == "/products/item.js":
+                data = {
+                    "id": 1,
+                    "handle": "item",
+                    "options": [{"name": "Size", "values": ["Small"]}],
+                    "variants": [{"id": 101, "title": "Small", "price": 1599, "available": True, "options": ["Small"]}],
+                }
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps(data).encode("utf-8"))
+            elif self.path == "/cart.js":
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"item_count": 0, "items": []}).encode("utf-8"))
+            elif self.path.startswith("/products/item"):
+                html = """<!doctype html><html><body>
+                <form action="/cart/add" method="post">
+                  <select name="options[Size]"><option value="Small">Small</option></select>
+                  <button type="submit" name="add" onclick="window.gtag('event', 'click');">Add to Cart</button>
+                </form>
+                <script>
+                document.querySelector('form').onsubmit = async (e) => {
+                  e.preventDefault();
+                  await fetch('/cart/add.js', {method:'POST', body:'id=101'});
+                };
+                </script></body></html>"""
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html")
+                self.end_headers()
+                self.wfile.write(html.encode("utf-8"))
+
+        def do_POST(self):
+            if self.path == "/cart/add.js":
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(b'{"error": "Server error"}')
+
+    server, thread = make_test_server(Storefront)
+    try:
+        origin = f"http://127.0.0.1:{server.server_port}"
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            page = await browser.new_page()
+            await page.goto(f"{origin}/products/item")
+            auditor = ShopifyPurchaseBlockerAuditor()
+            res = await auditor.run({"page": page, "base_url": f"{origin}/products/item"})
+            assert res.status == "WARN"
+            assert res.details["reason_code"] == "NETWORK_OR_RESPONSE_UNRESOLVED"
+            await browser.close()
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
 # 2. Mandatory option working -> PASS
 @pytest.mark.asyncio
 async def test_purchase_blocker_mandatory_option_works_pass():

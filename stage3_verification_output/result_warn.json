@@ -1,5 +1,5 @@
 {
-  "url": "http://127.0.0.1:34607/products/warn",
+  "url": "http://127.0.0.1:40633/products/warn",
   "results": [
     {
       "skill_name": "shopify_purchase_blocker_auditor",
@@ -24,21 +24,21 @@
         },
         "expected": "Successful 200 OK network response incrementing target variant quantity",
         "observed": "Network status HTTP 500, quantity delta = 0",
-        "timestamp": "2026-10-10T08:52:17.082689+00:00",
+        "timestamp": "2026-10-10T09:44:11.792440+00:00",
         "reproduction_steps": [
-          "Navigate to http://127.0.0.1:34607/products/warn",
+          "Navigate to http://127.0.0.1:40633/products/warn",
           "Click Add to Cart"
         ],
-        "redacted_screenshot": "reports/screenshots/blocker_audit_atc_result_1791622336.png",
+        "redacted_screenshot": "reports/screenshots/blocker_audit_atc_result_1791625451.png",
         "network_cart_evidence": {
           "meta_before": {
             "status": "empty",
-            "captured_at": "2026-10-10T08:52:16.724944+00:00",
+            "captured_at": "2026-10-10T09:44:11.400350+00:00",
             "item_count": 0
           },
           "meta_after": {
             "status": "empty",
-            "captured_at": "2026-10-10T08:52:16.912084+00:00",
+            "captured_at": "2026-10-10T09:44:11.528934+00:00",
             "item_count": 0
           },
           "add_request_summary": {
