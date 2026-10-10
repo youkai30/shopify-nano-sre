@@ -869,17 +869,18 @@ class ShopifyPurchaseBlockerAuditor(Skill):
 
         return meta, items
 
-    async def _take_screenshot(self, page, tag: str) -> Optional[str]:
-        """Take screenshot with non-mutative visual CSS PII masking, covering form inputs, textareas, and visible personal data outside fields without mutating input.value or textarea.value."""
+    async def _take_screenshot(self, page, tag: str, target_locator=None) -> Optional[str]:
+        """Take screenshot scoped strictly to product form / fault element with non-mutative visual CSS PII masking. Returns None if safe redaction or element scoping cannot be guaranteed."""
         os.makedirs("reports/screenshots", exist_ok=True)
         filename = f"blocker_audit_{tag}_{int(datetime.now().timestamp())}.png"
         path = os.path.join("reports/screenshots", filename)
 
         try:
-            # Apply temporary opaque black box masking over form fields and visible text nodes with personal data without mutating values
-            try:
-                await page.evaluate("""
-                    () => {
+            # Mask all form fields, textareas, and any visible user/customer/personal data text elements without mutating DOM values
+            mask_success = await page.evaluate("""
+                () => {
+                    try {
+                        // 1. Mask all input fields and textareas visually without changing input.value or textarea.value
                         const fieldSelector = 'input[type="text"], input[type="email"], input[type="tel"], input[type="search"], textarea, [name*="properties"], [data-pii], .user-pii, .pii-data, [data-user-pii]';
                         document.querySelectorAll(fieldSelector).forEach(el => {
                             el.dataset.origBg = el.style.backgroundColor || '';
@@ -890,27 +891,52 @@ class ShopifyPurchaseBlockerAuditor(Skill):
                             el.style.filter = 'blur(10px) brightness(0)';
                         });
 
-                        // Mask visible personal data outside form fields (e.g. emails, phone numbers, addresses in paragraphs/spans/divs)
-                        const piiPattern = /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})|(\+?\d{1,4}?[-.\s]?\(?\d{1,3}?\)?[-.\s]?\d{1,4}[-.\s]?\d{1,4}[-.\s]?\d{1,9})/;
-                        document.querySelectorAll('p, span, div, td, li, a, h1, h2, h3, h4, h5, h6, [data-pii-text]').forEach(el => {
-                            if (el.children.length === 0 && el.textContent && piiPattern.test(el.textContent)) {
-                                el.dataset.origBg = el.style.backgroundColor || '';
-                                el.dataset.origColor = el.style.color || '';
-                                el.dataset.origFilter = el.style.filter || '';
-                                el.style.backgroundColor = '#000000';
-                                el.style.color = '#000000';
-                                el.style.filter = 'blur(10px) brightness(0)';
+                        // 2. Mask all text nodes outside form fields that contain text content (user info, names, emails, phones, custom property values)
+                        const textElements = document.querySelectorAll('p, span, div, td, li, a, h1, h2, h3, h4, h5, h6, [data-pii-text], strong, em, b');
+                        textElements.forEach(el => {
+                            if (el.children.length === 0 && el.textContent && el.textContent.trim().length > 0) {
+                                // Exclude pure product form controls (button labels, select labels, headings inside form) unless they contain user info
+                                const parentForm = el.closest('form');
+                                if (!parentForm || el.matches('[data-pii-text], .user-info, .customer-info') || !['add to cart', 'ajouter au panier', 'small', 'large', 'medium'].includes(el.textContent.trim().toLowerCase())) {
+                                    el.dataset.origBg = el.style.backgroundColor || '';
+                                    el.dataset.origColor = el.style.color || '';
+                                    el.dataset.origFilter = el.style.filter || '';
+                                    el.style.backgroundColor = '#000000';
+                                    el.style.color = '#000000';
+                                    el.style.filter = 'blur(10px) brightness(0)';
+                                }
                             }
                         });
+                        return true;
+                    } catch (e) {
+                        return false;
                     }
-                """)
-            except Exception as e:
-                logger.debug("Screenshot CSS masking note: %s", e)
+                }
+            """)
 
-            await page.screenshot(path=path, full_page=False)
+            if not mask_success:
+                logger.debug("Failed to apply visual PII masking; suppressing screenshot to prevent leak.")
+                return None
+
+            # Scope screenshot strictly to target fault element or product form bounding box
+            element_to_capture = None
+            if target_locator and await target_locator.count() > 0:
+                element_to_capture = target_locator.first
+            else:
+                form = page.locator('form[action*="/cart/add"], [data-type="add-to-cart-form"]').first
+                if await form.count() > 0:
+                    element_to_capture = form
+
+            if element_to_capture and await element_to_capture.is_visible():
+                await element_to_capture.screenshot(path=path)
+            else:
+                # If form/fault element is not visible or cannot be isolated, exclude screenshot safely (return None)
+                logger.debug("Product form / fault element not directly isolated; suppressing full page screenshot.")
+                return None
+
             return path
         except Exception as e:
-            logger.debug("Failed taking screenshot: %s", e)
+            logger.debug("Screenshot capture failed or excluded safely: %s", e)
             return None
         finally:
             # Guaranteed style restoration without mutating input or textarea values

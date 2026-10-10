@@ -1,5 +1,5 @@
 {
-  "url": "http://127.0.0.1:41661/products/pass",
+  "url": "http://127.0.0.1:34607/products/pass",
   "results": [
     {
       "skill_name": "shopify_purchase_blocker_auditor",
@@ -24,21 +24,21 @@
         },
         "expected": "Target product variant added to cart",
         "observed": "Added variant ID 101 (quantity delta = 1)",
-        "timestamp": "2026-10-09T21:33:24.875437+00:00",
+        "timestamp": "2026-10-10T08:51:58.817330+00:00",
         "reproduction_steps": [
-          "Navigate to http://127.0.0.1:41661/products/pass",
+          "Navigate to http://127.0.0.1:34607/products/pass",
           "Click Add to Cart"
         ],
-        "redacted_screenshot": "reports/screenshots/blocker_audit_atc_result_1791581604.png",
+        "redacted_screenshot": "reports/screenshots/blocker_audit_atc_result_1791622318.png",
         "network_cart_evidence": {
           "meta_before": {
             "status": "empty",
-            "captured_at": "2026-10-09T21:33:24.300029+00:00",
+            "captured_at": "2026-10-10T08:51:58.465496+00:00",
             "item_count": 0
           },
           "meta_after": {
             "status": "nonempty",
-            "captured_at": "2026-10-09T21:33:24.485392+00:00",
+            "captured_at": "2026-10-10T08:51:58.644279+00:00",
             "item_count": 1
           },
           "add_request_summary": {
