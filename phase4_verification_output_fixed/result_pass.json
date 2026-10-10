@@ -1,0 +1,88 @@
+{
+  "url": "http://127.0.0.1:34285/products/pass",
+  "results": [
+    {
+      "skill_name": "shopify_mobile_purchase_blocker_auditor",
+      "status": "PASS",
+      "summary": "Mobile purchase blocker audit passed across all mobile viewports: target product variant added to cart successfully",
+      "details": {
+        "reason_code": "NONE",
+        "blocker_identity": {},
+        "steps": [
+          "Auditing product handle on mobile (390x844): pass",
+          "Successfully selected required variant options on mobile",
+          "Scrolled to Add to Cart button on mobile",
+          "Tapped Add to Cart button using touch action",
+          "Confirmed target product variant addition to cart on mobile"
+        ],
+        "proven_purchase_conditions": {
+          "product_handle": "pass",
+          "target_variant_id": 101,
+          "proven_dom_options": {},
+          "required_consents_satisfied": false
+        },
+        "expected": "Target product variant added to cart",
+        "observed": "Added variant ID 101 (quantity delta = 1)",
+        "timestamp": "2026-10-10T12:32:44.178911+00:00",
+        "reproduction_steps": [
+          "Navigate to http://127.0.0.1:34285/products/pass",
+          "Tap Add to Cart"
+        ],
+        "redacted_screenshot": "reports/screenshots/mobile_blocker_audit_atc_result_1791635564.png",
+        "network_cart_evidence": {
+          "meta_before": {
+            "status": "empty",
+            "captured_at": "2026-10-10T12:32:43.835654+00:00",
+            "item_count": 0
+          },
+          "meta_after": {
+            "status": "nonempty",
+            "captured_at": "2026-10-10T12:32:44.014262+00:00",
+            "item_count": 1
+          },
+          "add_request_summary": {
+            "captured": true,
+            "status": 200
+          },
+          "delta_quantity": 1
+        },
+        "mobile_context_config": {
+          "name": "390x844",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+          "is_mobile": true,
+          "has_touch": true,
+          "environment": "Chromium mobile emulation (390x844, touch-enabled)"
+        },
+        "environment": "Chromium mobile emulation",
+        "tested_viewports": [
+          "390x844",
+          "360x800"
+        ],
+        "viewport_results": {
+          "390x844": {
+            "status": "PASS",
+            "summary": "Mobile purchase blocker audit passed: target product variant added to cart successfully",
+            "reason_code": "NONE",
+            "blocker_identity": {}
+          },
+          "360x800": {
+            "status": "PASS",
+            "summary": "Mobile purchase blocker audit passed: target product variant added to cart successfully",
+            "reason_code": "NONE",
+            "blocker_identity": {}
+          }
+        },
+        "desktop_comparison": {
+          "classification": "NOT_NEEDED_FOR_PASS"
+        },
+        "reproduction_summary": {
+          "classification": "NOT_NEEDED"
+        }
+      }
+    }
+  ]
+}

@@ -19,6 +19,7 @@ from nano_sre.skills import (
     MCPAdvisor,
     PixelAuditor,
     ShopifyDoctorSkill,
+    ShopifyMobilePurchaseBlockerAuditor,
     ShopifyPurchaseBlockerAuditor,
     ShopifyShopper,
     ShopifyVariantAuditor,
@@ -461,6 +462,7 @@ def _build_skills(settings: Settings, update_baseline: bool) -> dict[str, Skill]
         MCPAdvisor(),
         ShopifyVariantAuditor(),
         ShopifyPurchaseBlockerAuditor(),
+        ShopifyMobilePurchaseBlockerAuditor(),
     ]
     return {skill.name(): skill for skill in skill_instances}
 
