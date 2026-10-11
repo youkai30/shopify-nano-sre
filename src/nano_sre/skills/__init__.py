@@ -4,6 +4,7 @@ from nano_sre.skills.headless_probe import HeadlessProbeSkill
 from nano_sre.skills.mcp_advisor import MCPAdvisor
 from nano_sre.skills.pixel_auditor import PixelAuditor
 from nano_sre.skills.shopify_doctor import ShopifyDoctorSkill
+from nano_sre.skills.shopify_cart_consistency_auditor import ShopifyCartConsistencyAuditor
 from nano_sre.skills.shopify_mobile_purchase_blocker_auditor import ShopifyMobilePurchaseBlockerAuditor
 from nano_sre.skills.shopify_purchase_blocker_auditor import ShopifyPurchaseBlockerAuditor
 from nano_sre.skills.shopify_shopper import ShopifyShopper
@@ -20,4 +21,5 @@ __all__ = [
     "ShopifyShopper",
     "ShopifyVariantAuditor",
     "VisualAuditor",
+    "ShopifyCartConsistencyAuditor",
 ]
