@@ -146,6 +146,9 @@ ruff.toml
 .auth.json
 .test-results/
 
-# Generated reports
+# Generated reports & evidence
 reports/
-
+verification_output/
+*.xml
+windows-*.txt
+ci_metadata.txt
