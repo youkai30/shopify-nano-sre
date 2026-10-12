@@ -8,6 +8,7 @@ from nano_sre.skills.shopify_cart_consistency_auditor import ShopifyCartConsiste
 from nano_sre.skills.shopify_checkout_blocker_auditor import ShopifyCheckoutBlockerAuditor
 from nano_sre.skills.shopify_mobile_purchase_blocker_auditor import ShopifyMobilePurchaseBlockerAuditor
 from nano_sre.skills.shopify_purchase_blocker_auditor import ShopifyPurchaseBlockerAuditor
+from nano_sre.skills.shopify_search_discovery_auditor import ShopifySearchDiscoveryAuditor
 from nano_sre.skills.shopify_shopper import ShopifyShopper
 from nano_sre.skills.shopify_variant_auditor import ShopifyVariantAuditor
 from nano_sre.skills.visual_auditor import VisualAuditor
@@ -24,4 +25,5 @@ __all__ = [
     "VisualAuditor",
     "ShopifyCartConsistencyAuditor",
     "ShopifyCheckoutBlockerAuditor",
+    "ShopifySearchDiscoveryAuditor",
 ]
