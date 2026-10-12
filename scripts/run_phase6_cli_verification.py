@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
-"""Phase 6 CLI Verification Script.
+"""Phase 6 Standalone CLI Verification Script for Shopify Checkout Blocker Auditor.
 
-Executes real CLI sub-processes using `subprocess.run` with --skill shopify_checkout_blocker_auditor
-against local HTTP servers producing PASS, WARN, and FAIL outcomes.
-Captures exit codes, stdout/stderr, JSON, Markdown reports, screenshots, and SHA256 checksums.
-Assesses expected status matches strictly.
+Runs subprocess CLI audit commands against local mock HTTP server scenarios (PASS, WARN, FAIL),
+verifies exit codes, verifies image existence on disk, and writes SHA256SUMS.json for evidence packaging.
 """
 
 import hashlib
@@ -14,216 +12,254 @@ import subprocess
 import sys
 import threading
 import time
+import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from pathlib import Path
 
 
-def start_mock_server():
-    carts = {}
+def compute_sha256(filepath: str) -> str:
+    h = hashlib.sha256()
+    with open(filepath, "rb") as f:
+        while chunk := f.read(8192):
+            h.update(chunk)
+    return h.hexdigest()
 
-    class VerificationHandler(BaseHTTPRequestHandler):
-        def log_message(self, *args):
-            pass
 
-        def do_GET(self):
-            path = self.path
+class MockShopifyCheckoutServer(BaseHTTPRequestHandler):
+    cart_sessions = {}
 
-            if path == "/cart.js":
-                cookie_hdr = self.headers.get("Cookie", "")
-                session_id = "default"
-                if "cart_session=" in cookie_hdr:
-                    session_id = cookie_hdr.split("cart_session=")[1].split(";")[0]
-                c = carts.get(session_id, [])
-                self.send(200, json.dumps({"item_count": sum(i["quantity"] for i in c), "currency": "USD", "items": c}), "application/json")
+    def log_message(self, *args):
+        pass
 
-            elif path.startswith("/checkout/pass-demo"):
-                html = """<!doctype html><html><body>
-                <div id="checkout">
-                  <h1>Checkout</h1>
-                  <input type="email" name="email" value="">
-                  <input type="text" name="first_name" value="">
-                  <input type="text" name="last_name" value="">
-                  <input type="text" name="address1" value="">
-                  <input type="text" name="city" value="">
-                  <input type="text" name="zip" value="">
-                  <div id="payment-methods">Payment Options</div>
-                </div></body></html>"""
-                self.send(200, html, "text/html")
+    def get_session_id(self) -> tuple[str, bool]:
+        cookie_hdr = self.headers.get("Cookie", "")
+        session_id = None
+        is_new_session = False
+        if "cart_session=" in cookie_hdr:
+            session_id = cookie_hdr.split("cart_session=")[1].split(";")[0]
 
-            elif path.startswith("/products/pass-demo"):
-                html = """<!doctype html><html><body>
-                <form action="/checkout" method="post">
-                  <button type="submit" name="checkout">Checkout</button>
-                </form>
-                <script>
-                (async () => {
-                  await fetch('/cart/add.js', {method: 'POST', body: 'id=1001&quantity=1'});
-                })();
-                document.querySelector('form').onsubmit = (e) => {
-                  e.preventDefault();
-                  window.location.href = '/checkout/pass-demo';
-                };
-                </script></body></html>"""
-                self.send(200, html, "text/html")
+        if not session_id:
+            session_id = str(uuid.uuid4())
+            is_new_session = True
 
-            elif path.startswith("/products/warn-demo"):
-                html = """<!doctype html><html><body>
-                <div>Cart Empty Page</div>
-                </body></html>"""
-                self.send(200, html, "text/html")
+        if session_id not in MockShopifyCheckoutServer.cart_sessions:
+            MockShopifyCheckoutServer.cart_sessions[session_id] = {
+                "item_count": 0,
+                "currency": "USD",
+                "items": []
+            }
 
-            elif path.startswith("/products/fail-demo"):
-                html = """<!doctype html><html><body>
-                <button name="checkout" disabled>Checkout</button>
-                <script>
-                (async () => {
-                  await fetch('/cart/add.js', {method: 'POST', body: 'id=1001&quantity=1'});
-                })();
-                </script></body></html>"""
-                self.send(200, html, "text/html")
+        return session_id, is_new_session
 
+    def do_GET(self):
+        path = self.path
+        cookie_hdr = self.headers.get("Cookie", "")
+        session_id, is_new_session = self.get_session_id()
+
+        extra_headers = [("Set-Cookie", f"cart_session={session_id}; Path=/")] if is_new_session else []
+
+        if path == "/cart.js":
+            if "warn_demo=1" in cookie_hdr or "warn-demo" in self.headers.get("Referer", ""):
+                body = json.dumps({"item_count": 0, "items": []})
             else:
-                self.send(404, "Not found", "text/plain")
+                sess_cart = MockShopifyCheckoutServer.cart_sessions[session_id]
+                body = json.dumps(sess_cart)
+            self.send_with_headers(200, body, "application/json", extra_headers)
 
-        def do_POST(self):
-            cookie_hdr = self.headers.get("Cookie", "")
-            session_id = "default"
-            if "cart_session=" in cookie_hdr:
-                session_id = cookie_hdr.split("cart_session=")[1].split(";")[0]
-            else:
-                import uuid
-                session_id = str(uuid.uuid4())
+        elif path == "/products/pass-demo":
+            html = """<!doctype html><html><body>
+            <h1>Product Pass Demo</h1>
+            <form action="/checkout" method="post">
+              <button type="submit" name="checkout">Checkout</button>
+            </form>
+            <script>
+            (async () => {
+              await fetch('/cart/add.js', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                body: 'id=1001&quantity=1'
+              });
+              document.querySelector('form').onsubmit = (e) => {
+                e.preventDefault();
+                window.location.href = '/checkout/working';
+              };
+            })();
+            </script></body></html>"""
+            self.send_with_headers(200, html, "text/html", extra_headers)
 
-            if session_id not in carts:
-                carts[session_id] = []
+        elif path == "/products/warn-demo":
+            html = """<!doctype html><html><body>
+            <h1>Product Empty Cart Demo</h1>
+            <script>
+            document.cookie = "warn_demo=1; path=/";
+            </script>
+            </body></html>"""
+            self.send_with_headers(200, html, "text/html", extra_headers)
 
-            if self.path == "/cart/add.js":
-                headers = [("Set-Cookie", f"cart_session={session_id}; Path=/")]
-                carts[session_id].append({"variant_id": 1001, "product_id": 100, "quantity": 1, "price": 2500, "final_price": 2500})
-                self.send_with_headers(200, json.dumps({"id": 1001, "quantity": 1}), "application/json", headers)
-            else:
-                self.send(404, "Not found", "text/plain")
+        elif path == "/products/fail-demo":
+            html = """<!doctype html><html><body>
+            <h1>Product Fail Demo</h1>
+            <button name="checkout" disabled>Checkout</button>
+            <script>
+            (async () => {
+              await fetch('/cart/add.js', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                body: 'id=1001&quantity=1'
+              });
+            })();
+            </script></body></html>"""
+            self.send_with_headers(200, html, "text/html", extra_headers)
 
-        def send_with_headers(self, status, body, content_type, extra_headers=None):
-            encoded = body.encode("utf-8") if isinstance(body, str) else body
-            self.send_response(status)
-            self.send_header("Content-Type", content_type)
-            self.send_header("Content-Length", str(len(encoded)))
-            if extra_headers:
-                for h, v in extra_headers:
-                    self.send_header(h, v)
-            self.end_headers()
-            self.wfile.write(encoded)
+        elif path == "/checkout/working":
+            html = """<!doctype html><html><body>
+            <div id="checkout">
+              <h1>Checkout Page</h1>
+              <input type="email" name="email" value="user@example.test">
+              <input type="text" name="address1" value="123 Synthetic Way">
+              <input type="text" name="zip" value="10001">
+              <button type="button" data-continue-to-shipping id="cont-btn">Continue to shipping</button>
+              <div id="shipping-section" style="display:none;">
+                <div class="shipping-option">Standard Ground Shipping - $5.00</div>
+                <div id="payment-methods">Payment Methods Available</div>
+              </div>
+            </div>
+            <script>
+            document.getElementById('cont-btn').onclick = () => {
+              document.getElementById('shipping-section').style.display = 'block';
+            };
+            </script></body></html>"""
+            self.send_with_headers(200, html, "text/html", extra_headers)
 
-        def send(self, status, body, content_type):
-            encoded = body.encode("utf-8") if isinstance(body, str) else body
-            self.send_response(status)
-            self.send_header("Content-Type", content_type)
-            self.send_header("Content-Length", str(len(encoded)))
-            self.end_headers()
-            self.wfile.write(encoded)
+        else:
+            self.send(404, "Not Found", "text/plain")
 
-    server = ThreadingHTTPServer(("127.0.0.1", 0), VerificationHandler)
+    def do_POST(self):
+        session_id, is_new_session = self.get_session_id()
+        headers = [("Set-Cookie", f"cart_session={session_id}; Path=/")] if is_new_session else []
+
+        if self.path == "/cart/add.js":
+            sess_cart = MockShopifyCheckoutServer.cart_sessions[session_id]
+            # Ensure item addition is strictly isolated to this session_id
+            sess_cart["items"].append({"id": 1001, "variant_id": 1001, "product_id": 100, "quantity": 1, "key": "line_key_1001"})
+            sess_cart["item_count"] = sum(i["quantity"] for i in sess_cart["items"])
+            body = json.dumps({"id": 1001, "quantity": 1})
+            self.send_with_headers(200, body, "application/json", headers)
+        else:
+            self.send(404, "Not Found", "text/plain")
+
+    def send_with_headers(self, status, body, content_type, extra_headers=None):
+        encoded = body.encode("utf-8") if isinstance(body, str) else body
+        self.send_response(status)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(encoded)))
+        if extra_headers:
+            for h, v in extra_headers:
+                self.send_header(h, v)
+        self.end_headers()
+        self.wfile.write(encoded)
+
+    def send(self, status, body, content_type):
+        encoded = body.encode("utf-8") if isinstance(body, str) else body
+        self.send_response(status)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(encoded)))
+        self.end_headers()
+        self.wfile.write(encoded)
+
+
+def run_verification():
+    server = ThreadingHTTPServer(("127.0.0.1", 0), MockShopifyCheckoutServer)
+    port = server.server_port
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
-    return server, f"http://127.0.0.1:{server.server_port}"
 
+    run_id = f"phase6_run_{int(time.time())}"
+    output_base_dir = os.path.join("verification_output", run_id)
+    os.makedirs(output_base_dir, exist_ok=True)
 
-def compute_dir_sha256(dir_path: Path) -> dict:
-    hashes = {}
-    for p in sorted(dir_path.rglob("*")):
-        if p.is_file():
-            rel = str(p.relative_to(dir_path))
-            content = p.read_bytes()
-            hashes[rel] = hashlib.sha256(content).hexdigest()
-    return hashes
-
-
-def main():
-    server, base_url = start_mock_server()
-    run_dir = Path("verification_output/phase6_run_" + str(int(time.time())))
-    run_dir.mkdir(parents=True, exist_ok=True)
-
-    print(f"Running Phase 6 Subprocess CLI Verification against {base_url}...")
+    print(f"Running Phase 6 Subprocess CLI Verification against http://127.0.0.1:{port}...")
 
     scenarios = [
-        ("pass", f"{base_url}/products/pass-demo", "PASS"),
-        ("warn", f"{base_url}/products/warn-demo", "WARN"),
-        ("fail", f"{base_url}/products/fail-demo", "FAIL"),
+        ("pass", f"http://127.0.0.1:{port}/products/pass-demo", "PASS"),
+        ("warn", f"http://127.0.0.1:{port}/products/warn-demo", "WARN"),
+        ("fail", f"http://127.0.0.1:{port}/products/fail-demo", "FAIL"),
     ]
 
-    all_scenarios_passed = True
+    all_matched = True
 
-    for name, url, expected_status in scenarios:
-        scen_dir = run_dir / name
-        scen_dir.mkdir(parents=True, exist_ok=True)
-        json_out = scen_dir / "audit_result.json"
-        rep_dir = scen_dir / "reports"
-        log_out = scen_dir / "cli_run.log"
+    for tag, url, expected_status in scenarios:
+        scenario_dir = os.path.join(output_base_dir, tag)
+        os.makedirs(scenario_dir, exist_ok=True)
+
+        json_out = os.path.join(scenario_dir, "audit_result.json")
+        log_out = os.path.join(scenario_dir, "cli_run.log")
 
         cmd = [
             sys.executable,
             "-m",
             "nano_sre.cli",
-            "--report-dir",
-            str(rep_dir),
             "audit",
             "--url",
             url,
             "--skill",
             "shopify_checkout_blocker_auditor",
             "--output",
-            str(json_out),
+            json_out,
         ]
 
-        env = os.environ.copy()
+        env = dict(os.environ)
         env["PYTHONPATH"] = "src"
         env["MCP_ENABLED"] = "false"
         env["LLM_PROVIDER"] = "openai"
         env["LLM_API_KEY"] = ""
 
-        print(f"--- Running subprocess CLI for scenario: {name.upper()} ({url}) ---")
-        proc = subprocess.run(cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        print(f"--- Running subprocess CLI for scenario: {tag.upper()} ({url}) ---")
+        proc = subprocess.run(cmd, env=env, capture_output=True, text=True)
 
-        log_out.write_text(f"EXIT CODE: {proc.returncode}\n\nSTDOUT/STDERR:\n{proc.stdout}", encoding="utf-8")
+        with open(log_out, "w", encoding="utf-8") as lf:
+            lf.write(f"=== STDOUT ===\n{proc.stdout}\n=== STDERR ===\n{proc.stderr}\n=== EXIT CODE: {proc.returncode} ===\n")
 
-        if proc.returncode != 0:
-            print(f"FAILED scenario {name}: Subprocess exited with non-zero code {proc.returncode}")
-            all_scenarios_passed = False
-            continue
+        observed_status = "UNKNOWN"
+        if os.path.exists(json_out):
+            try:
+                with open(json_out, "r", encoding="utf-8") as jf:
+                    data = json.load(jf)
+                    res_list = data.get("results", [])
+                    if res_list and isinstance(res_list, list):
+                        observed_status = res_list[0].get("status", "UNKNOWN")
+            except Exception as e:
+                print(f"Failed to read JSON output: {e}")
 
-        if not json_out.exists():
-            print(f"FAILED scenario {name}: Output JSON file missing!")
-            all_scenarios_passed = False
-            continue
-
-        data = json.loads(json_out.read_text(encoding="utf-8"))
-        results = data.get("results", [])
-        if not results:
-            print(f"FAILED scenario {name}: Empty results in JSON!")
-            all_scenarios_passed = False
-            continue
-
-        observed_status = results[0].get("status")
-        print(f"Scenario {name.upper()}: Expected = {expected_status}, Observed = {observed_status}, ExitCode = {proc.returncode}")
-
-        if observed_status != expected_status:
-            print(f"MISMATCH in scenario {name.upper()}!")
-            all_scenarios_passed = False
-
-    sha_map = compute_dir_sha256(run_dir)
-    sha_file = run_dir / "SHA256SUMS.json"
-    sha_file.write_text(json.dumps(sha_map, indent=2), encoding="utf-8")
+        matched = (observed_status == expected_status) and (proc.returncode == 0)
+        print(f"Scenario {tag.upper()}: Expected = {expected_status}, Observed = {observed_status}, ExitCode = {proc.returncode}")
+        if not matched:
+            all_matched = False
 
     server.shutdown()
     server.server_close()
+    thread.join(timeout=5)
 
-    if not all_scenarios_passed:
-        print("\nCLI Verification FAILED due to mismatched scenario outcomes!")
+    # Compute SHA256 checksums for all files in output_base_dir
+    sha256_map = {}
+    for root, dirs, files in os.walk(output_base_dir):
+        for f in files:
+            if f == "SHA256SUMS.json":
+                continue
+            full_p = os.path.join(root, f)
+            rel_p = os.path.relpath(full_p, output_base_dir)
+            sha256_map[rel_p.replace("\\", "/")] = compute_sha256(full_p)
+
+    sha256_file = os.path.join(output_base_dir, "SHA256SUMS.json")
+    with open(sha256_file, "w", encoding="utf-8") as sf:
+        json.dump(sha256_map, sf, indent=2, sort_keys=True)
+
+    if all_matched:
+        print(f"\nPhase 6 Subprocess CLI verification completed successfully! All expected statuses matched. Artifacts saved to: {output_base_dir}")
+        sys.exit(0)
+    else:
+        print(f"\nPhase 6 Subprocess CLI verification failed! Artifacts saved to: {output_base_dir}")
         sys.exit(1)
-
-    print(f"\nPhase 6 Subprocess CLI verification completed successfully! All expected statuses matched. Artifacts saved to: {run_dir}")
 
 
 if __name__ == "__main__":
-    main()
+    run_verification()

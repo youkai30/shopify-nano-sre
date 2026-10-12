@@ -34,20 +34,14 @@ def _redact_value(val: Any) -> Any:
     if isinstance(val, str):
         if val.startswith("reports/") or val.startswith("phase6_") or val.startswith("verification_output/") or ("/" in val and val.endswith(".png")):
             return val
-        return _redactor.redact_text(val)
+        s = _redactor.redact_text(val)
+        s = re.sub(r"\b[a-f0-9]{32,64}\b", "[REDACTED_TOKEN]", s, flags=re.IGNORECASE)
+        return s
     if isinstance(val, list):
         return [_redact_value(item) for item in val]
     if isinstance(val, dict):
         return {k: _redact_value(v) for k, v in val.items()}
     return val
-
-
-def _first_not_none(*args: Any) -> Any:
-    """Return first argument that is not None, explicitly preserving 0 or False."""
-    for arg in args:
-        if arg is not None:
-            return arg
-    return None
 
 
 def parse_price_cents(text: str) -> Optional[int]:
@@ -125,7 +119,7 @@ def _get_locale_prefix_and_origin(url: str) -> tuple[str, str]:
 
 
 def _sanitize_url(url: str) -> str:
-    """Sanitize URL to remove credentials or tokens without breaking scheme/host/path."""
+    """Sanitize URL to remove tokens, keys, or credentials without breaking scheme/host/path."""
     if not url:
         return ""
     parsed = urlparse(url)
@@ -134,7 +128,20 @@ def _sanitize_url(url: str) -> str:
         netloc += f":{parsed.port}"
     scheme = parsed.scheme or "http"
     path = parsed.path or "/"
-    return f"{scheme}://{netloc}{path}"
+    q_params = parse_qs(parsed.query)
+    safe_params = {k: v for k, v in q_params.items() if k.lower() not in ("token", "key", "cart_token", "secret", "auth")}
+    clean_path = re.sub(r"/[a-f0-9]{32,64}", "/[REDACTED_TOKEN]", path)
+    return f"{scheme}://{netloc}{clean_path}"
+
+
+def _is_local_origin(url: str) -> bool:
+    """Verify that URL points strictly to a local host origin."""
+    try:
+        parsed = urlparse(url)
+        host = (parsed.hostname or "").lower()
+        return host in ("127.0.0.1", "localhost", "0.0.0.0", "::1")
+    except Exception:
+        return False
 
 
 class ShopifyCheckoutBlockerAuditor(Skill):
@@ -165,6 +172,20 @@ class ShopifyCheckoutBlockerAuditor(Skill):
                 }),
             )
 
+        # Enforce local scope before any interaction
+        if not _is_local_origin(base_url) or not _is_local_origin(page.url or base_url):
+            return SkillResult(
+                skill_name=self.name(),
+                status="WARN",
+                summary="Target URL is outside local sandbox origin; checkout audit skipped for safety",
+                details=_redact_value({
+                    "reason_code": "NON_LOCAL_SCOPE_BLOCKED",
+                    "steps": ["Local origin scope check failed"],
+                    "limitation_disclaimer": self.LOCAL_MOCK_LIMITATION,
+                    "checks": {},
+                }),
+            )
+
         salt = str(uuid.uuid4())[:8]
 
         res, run1_data = await self._run_single_audit_pass(context, page, base_url, salt)
@@ -176,54 +197,50 @@ class ShopifyCheckoutBlockerAuditor(Skill):
             run2_data = {}
             try:
                 if hasattr(page, "context") and page.context and hasattr(page.context, "browser") and page.context.browser:
+                    # Clean isolated context with fresh cookies under equivalent initial conditions (no auditor cart mutations)
                     new_context = await page.context.browser.new_context()
                     new_page = await new_context.new_page()
+
+                    # Attach active route abortion guardrail BEFORE initial page navigation of pass 2
+                    async def p2_guardrail_route(route):
+                        req_path = urlparse(route.request.url).path.lower()
+                        req_host = (urlparse(route.request.url).hostname or "").lower()
+                        if req_host and not _is_local_origin(route.request.url):
+                            await route.abort("blockedbyclient")
+                            return
+                        if any(p in req_path for p in ["/checkout/pay", "/orders/create", "/payments/charge", "/api/pay"]):
+                            await route.abort("blockedbyclient")
+                        else:
+                            await route.continue_()
+
+                    await new_page.route("**/*", p2_guardrail_route)
+
                     try:
                         await new_page.goto(base_url, wait_until="commit", timeout=60000)
-                        await asyncio.sleep(0.5)
-
-                        origin, locale = _get_locale_prefix_and_origin(_sanitize_url(new_page.url or base_url))
-                        c_meta, _ = await self._fetch_cart_snapshot(new_page, origin, locale)
-
-                        # Re-populate cart dynamically in run 2 using exact item data from run 1
-                        cart_items = run1_data.get("cart_items", [])
-                        if run1_data.get("initial_item_count", 0) > 0 and c_meta.get("item_count", 0) == 0:
-                            if cart_items:
-                                for item in cart_items:
-                                    v_id = item.get("id") or item.get("variant_id")
-                                    qty = item.get("quantity", 1)
-                                    if v_id:
-                                        await new_page.evaluate(
-                                            """async ({v_id, qty}) => {
-                                                await fetch('/cart/add.js', {
-                                                    method: 'POST',
-                                                    headers: {'Content-Type': 'application/json'},
-                                                    body: JSON.stringify({id: v_id, quantity: qty})
-                                                });
-                                            }""",
-                                            {"v_id": v_id, "qty": qty},
-                                        )
-                            else:
-                                await new_page.evaluate("""async () => {
-                                    await fetch('/cart/add.js', {method: 'POST', body: 'id=1001&quantity=1'});
-                                }""")
-                            await asyncio.sleep(0.3)
+                        try:
+                            await new_page.wait_for_load_state("networkidle", timeout=3000)
+                        except Exception:
+                            pass
 
                         ctx2 = dict(context, page=new_page)
                         res2, run2_data = await self._run_single_audit_pass(ctx2, new_page, base_url, salt)
                         res2_status = res2.status
                     finally:
+                        try:
+                            await new_page.unroute("**/*", p2_guardrail_route)
+                        except Exception:
+                            pass
                         await new_context.close()
                 else:
-                    await page.goto(base_url, wait_until="commit", timeout=60000)
-                    await asyncio.sleep(1)
-                    res2, run2_data = await self._run_single_audit_pass(context, page, base_url, salt)
-                    res2_status = res2.status
+                    res2_status = "UNRESOLVED"
             except Exception as e:
                 logger.debug("Isolated run 2 execution note: %s", e)
 
             init1 = run1_data.get("initial_item_count")
             init2 = run2_data.get("initial_item_count")
+
+            items1 = sorted([(i.get("variant_id") or i.get("id"), i.get("key"), i.get("quantity")) for i in run1_data.get("cart_items", [])])
+            items2 = sorted([(i.get("variant_id") or i.get("id"), i.get("key"), i.get("quantity")) for i in run2_data.get("cart_items", [])])
 
             if res2_status != "FAIL":
                 res.status = "WARN"
@@ -236,18 +253,21 @@ class ShopifyCheckoutBlockerAuditor(Skill):
                         "run1_data": run1_data,
                         "run2_data": run2_data,
                     }
-            elif init1 != init2:
+            elif init1 != init2 or items1 != items2:
                 res.status = "WARN"
-                res.summary = f"Reproduction runs had non-equivalent initial cart states (Run 1 initial items: {init1}, Run 2: {init2}). Classified as WARN."
+                res.summary = f"Reproduction runs had non-equivalent initial cart conditions (Run 1 items: {items1}, Run 2: {items2}). Classified as WARN."
                 if isinstance(res.details, dict):
                     res.details["reproduction_summary"] = {
                         "confirmed": False,
-                        "mismatch_reason": "Non-equivalent initial cart conditions",
+                        "mismatch_reason": "Non-equivalent initial cart conditions or line item mismatch across runs",
                         "run1_data": run1_data,
                         "run2_data": run2_data,
                     }
             else:
                 id1 = (
+                    run1_data.get("target_product_id"),
+                    run1_data.get("target_variant_id"),
+                    run1_data.get("target_line_key"),
                     run1_data.get("failed_stage"),
                     run1_data.get("reason_code"),
                     run1_data.get("broken_element"),
@@ -255,6 +275,9 @@ class ShopifyCheckoutBlockerAuditor(Skill):
                     run1_data.get("observed"),
                 )
                 id2 = (
+                    run2_data.get("target_product_id"),
+                    run2_data.get("target_variant_id"),
+                    run2_data.get("target_line_key"),
                     run2_data.get("failed_stage"),
                     run2_data.get("reason_code"),
                     run2_data.get("broken_element"),
@@ -262,9 +285,16 @@ class ShopifyCheckoutBlockerAuditor(Skill):
                     run2_data.get("observed"),
                 )
 
+                # ALL target identity fields AND fault fields are mandatory for confirmed=True (using is not None for zero preservation)
                 req_fields_present = (
-                    id1[0] is not None
-                    and id1[1] is not None
+                    id1[0] is not None  # target_product_id
+                    and id1[1] is not None  # target_variant_id
+                    and id1[2] is not None  # target_line_key
+                    and id1[3] is not None  # failed_stage
+                    and id1[4] is not None  # reason_code
+                    and id1[5] is not None  # broken_element
+                    and id1[6] is not None  # expected
+                    and id1[7] is not None  # observed
                 )
 
                 if id1 == id2 and req_fields_present:
@@ -278,11 +308,11 @@ class ShopifyCheckoutBlockerAuditor(Skill):
                         }
                 else:
                     res.status = "WARN"
-                    res.summary = f"Failure identity mismatch across reproduction runs (Run 1: {run1_data.get('reason_code')}, Run 2: {run2_data.get('reason_code')}). Classified as WARN."
+                    res.summary = f"Failure identity mismatch across reproduction runs or missing required identity details (Run 1: {run1_data.get('reason_code')}, Run 2: {run2_data.get('reason_code')}). Classified as WARN."
                     if isinstance(res.details, dict):
                         res.details["reproduction_summary"] = {
                             "confirmed": False,
-                            "mismatch_reason": "Differing failure identity details between runs or missing required identity fields",
+                            "mismatch_reason": "Differing failure identity details or missing required identity fields across runs",
                             "run1_data": run1_data,
                             "run2_data": run2_data,
                         }
@@ -304,6 +334,14 @@ class ShopifyCheckoutBlockerAuditor(Skill):
 
         async def payment_guardrail_route(route):
             req_path = urlparse(route.request.url).path.lower()
+            req_host = (urlparse(route.request.url).hostname or "").lower()
+
+            # Enforce local scope on all network requests
+            if req_host and not _is_local_origin(route.request.url):
+                logger.warning("Active Sandbox Scope Guardrail: Blocked non-local request to %s", route.request.url)
+                await route.abort("blockedbyclient")
+                return
+
             if any(p in req_path for p in ["/checkout/pay", "/orders/create", "/payments/charge", "/api/pay"]):
                 order_pay_endpoints_called.append(route.request.url)
                 logger.warning("Payment Guardrail actively aborted request to payment endpoint: %s", route.request.url)
@@ -314,17 +352,25 @@ class ShopifyCheckoutBlockerAuditor(Skill):
         await page.route("**/*", payment_guardrail_route)
 
         try:
-            # Short wait for page load scripts to settle
-            await asyncio.sleep(0.5)
+            try:
+                await page.wait_for_load_state("networkidle", timeout=3000)
+            except Exception:
+                pass
 
-            # --- STAGE 1: Cart Readiness Verification ---
+            expected_product_id = context.get("target_product_id")
+            expected_variant_id = context.get("target_variant_id")
+            expected_line_key = context.get("target_line_key")
+
+            # --- STAGE 1: Cart Readiness & Line Item Identity ---
             cart_meta, cart_items = await self._fetch_cart_snapshot(page, origin, locale)
 
-            if cart_meta["status"] not in ("empty", "nonempty") or cart_meta["item_count"] <= 0:
+            if cart_meta["status"] not in ("empty", "nonempty") or cart_meta["item_count"] <= 0 or not cart_items:
                 checks["cart_readiness"] = {
                     "status": "WARN",
                     "reason_code": "CART_NOT_READY",
                     "summary": f"Cart readiness unproven: cart is empty or snapshot failed (status={cart_meta['status']}, count={cart_meta['item_count']})",
+                    "expected": "Positive item count with valid line items",
+                    "observed": f"item_count={cart_meta['item_count']}, items_len={len(cart_items)}",
                 }
                 return SkillResult(
                     skill_name=self.name(),
@@ -339,6 +385,56 @@ class ShopifyCheckoutBlockerAuditor(Skill):
                 ), {
                     "failed_stage": "cart_readiness",
                     "reason_code": "CART_NOT_READY",
+                    "broken_element": "cart_state",
+                    "expected": "Positive item count with valid line items",
+                    "observed": f"item_count={cart_meta['item_count']}",
+                    "initial_item_count": cart_meta["item_count"],
+                    "cart_items": cart_items,
+                }
+
+            # Prove target line item identity matching product ID, variant ID, AND line key strictly
+            matched_item = None
+            if expected_variant_id is not None or expected_product_id is not None or expected_line_key is not None:
+                for item in cart_items:
+                    v_match = expected_variant_id is None or str(item.get("variant_id") or item.get("id")) == str(expected_variant_id)
+                    p_match = expected_product_id is None or str(item.get("product_id")) == str(expected_product_id)
+                    k_match = expected_line_key is None or str(item.get("key")) == str(expected_line_key)
+                    if v_match and p_match and k_match and (item.get("quantity") or 0) > 0:
+                        matched_item = item
+                        break
+            else:
+                if len(cart_items) == 1 and (cart_items[0].get("quantity") or 0) > 0 and cart_items[0].get("key") is not None:
+                    matched_item = cart_items[0]
+
+            target_line_key = matched_item.get("key") if matched_item else None
+            target_product_id = matched_item.get("product_id") if matched_item else None
+            target_variant_id = (matched_item.get("variant_id") or matched_item.get("id")) if matched_item else None
+            target_quantity = matched_item.get("quantity", 1) if matched_item else 0
+
+            if not matched_item or target_quantity <= 0 or target_line_key is None:
+                checks["cart_readiness"] = {
+                    "status": "WARN",
+                    "reason_code": "TARGET_LINE_UNPROVEN",
+                    "summary": "Target line item identity or explicit line key unproven in cart snapshot",
+                    "expected": f"Target variant {expected_variant_id} with positive quantity and explicit line key",
+                    "observed": f"Available cart items: {[i.get('variant_id') or i.get('id') for i in cart_items]}",
+                }
+                return SkillResult(
+                    skill_name=self.name(),
+                    status="WARN",
+                    summary=_redact_value("Target line item unproven; checkout audit skipped"),
+                    details=_redact_value({
+                        "reason_code": "TARGET_LINE_UNPROVEN",
+                        "steps": steps + ["Target line item readiness check failed"],
+                        "limitation_disclaimer": self.LOCAL_MOCK_LIMITATION,
+                        "checks": checks,
+                    }),
+                ), {
+                    "failed_stage": "cart_readiness",
+                    "reason_code": "TARGET_LINE_UNPROVEN",
+                    "broken_element": "cart_line_item",
+                    "expected": "Proven line item identity and line key",
+                    "observed": "Unproven line item identity or key",
                     "initial_item_count": cart_meta["item_count"],
                     "cart_items": cart_items,
                 }
@@ -346,13 +442,25 @@ class ShopifyCheckoutBlockerAuditor(Skill):
             checks["cart_readiness"] = {
                 "status": "PASS",
                 "reason_code": "NONE",
-                "summary": f"Cart verified ready with positive item count ({cart_meta['item_count']})",
+                "summary": f"Cart verified ready with positive quantity ({target_quantity}) for target variant {target_variant_id}",
                 "item_count": cart_meta["item_count"],
+                "target_variant_id": target_variant_id,
+                "target_product_id": target_product_id,
+                "target_line_key": target_line_key,
             }
-            steps.append(f"Cart readiness verified: {cart_meta['item_count']} item(s)")
+            steps.append(f"Cart readiness verified: target variant {target_variant_id}, quantity {target_quantity}")
 
             # --- STAGE 2: Transition from Cart to Checkout ---
             btn_loc, btn_err, btn_code = await self._find_checkout_ui_element(page)
+
+            # Search for alternative valid UI path (e.g. express checkout button) if primary button is missing
+            if not btn_loc:
+                alt_btn = page.locator('button[data-shopify-express-checkout], .shopify-payment-button__button:visible, [data-testid="grid-cell"] button:visible').first
+                if await alt_btn.count() > 0 and await alt_btn.is_visible():
+                    btn_loc = alt_btn
+                    btn_err = None
+                    btn_code = None
+                    steps.append("Using alternative valid express checkout UI path")
 
             if not btn_loc:
                 checks["cart_to_checkout"] = {
@@ -360,9 +468,10 @@ class ShopifyCheckoutBlockerAuditor(Skill):
                     "reason_code": btn_code or "BUTTON_MISSING",
                     "summary": f"Checkout UI transition failed: {btn_err}",
                     "broken_element": "checkout_button",
+                    "expected": "Visible, enabled checkout button or alternative UI path",
+                    "observed": btn_err or "No checkout element found",
                 }
             else:
-                # Check for blocking overlay
                 overlay_blocked = await self._check_overlay_blocked(page, btn_loc)
                 if overlay_blocked:
                     checks["cart_to_checkout"] = {
@@ -370,9 +479,10 @@ class ShopifyCheckoutBlockerAuditor(Skill):
                         "reason_code": "BUTTON_OVERLAY_BLOCKED",
                         "summary": "Checkout button is blocked by an unhandled modal or overlay",
                         "broken_element": "overlay_element",
+                        "expected": "Unobscured checkout button",
+                        "observed": "Checkout button covered by overlay element",
                     }
                 else:
-                    # Monitor network request and navigation on click
                     request_sent = [False]
 
                     def on_atc_request(req):
@@ -383,7 +493,10 @@ class ShopifyCheckoutBlockerAuditor(Skill):
                     page.on("request", on_atc_request)
                     try:
                         await btn_loc.click(timeout=5000)
-                        await asyncio.sleep(1.0)
+                        try:
+                            await page.wait_for_load_state("networkidle", timeout=3000)
+                        except Exception:
+                            pass
                     except Exception as e:
                         logger.debug("Checkout click exception: %s", e)
                     finally:
@@ -392,8 +505,9 @@ class ShopifyCheckoutBlockerAuditor(Skill):
                         except Exception:
                             pass
 
-                    # Validate transition: Browser URL MUST actually reach /checkout!
-                    if "/checkout" not in page.url.lower():
+                    # Validate transition: Browser MUST prove visible checkout UI elements in DOM!
+                    is_checkout_ui = await self._verify_checkout_entry(page)
+                    if not is_checkout_ui:
                         if page.url.startswith("chrome-error://") or "500 Internal Server Error" in await page.content():
                             reason = "CHECKOUT_ERROR_PAGE"
                         elif not request_sent[0]:
@@ -405,8 +519,10 @@ class ShopifyCheckoutBlockerAuditor(Skill):
                         checks["cart_to_checkout"] = {
                             "status": "FAIL",
                             "reason_code": reason,
-                            "summary": f"Clicking checkout button did not navigate to checkout UI (current URL: {_sanitize_url(page.url)})",
+                            "summary": f"Clicking checkout button did not reach recognizable checkout UI (current URL: {_sanitize_url(page.url)})",
                             "broken_element": "checkout_transition",
+                            "expected": "Navigation to checkout page or drawer UI with visible checkout DOM elements",
+                            "observed": f"Remained on non-checkout page or missing checkout DOM ({_sanitize_url(page.url)})",
                         }
                     else:
                         checks["cart_to_checkout"] = {
@@ -433,6 +549,11 @@ class ShopifyCheckoutBlockerAuditor(Skill):
                     "failed_stage": "cart_to_checkout",
                     "reason_code": failed_reason,
                     "broken_element": checks["cart_to_checkout"].get("broken_element"),
+                    "expected": checks["cart_to_checkout"].get("expected"),
+                    "observed": checks["cart_to_checkout"].get("observed"),
+                    "target_product_id": target_product_id,
+                    "target_variant_id": target_variant_id,
+                    "target_line_key": target_line_key,
                     "initial_item_count": cart_meta["item_count"],
                     "cart_items": cart_items,
                 }
@@ -440,12 +561,14 @@ class ShopifyCheckoutBlockerAuditor(Skill):
             # --- STAGE 3: Local Checkout Steps ---
             steps.append("Verifying local checkout UI steps")
 
-            # Check checkout entry
+            # Check checkout entry DOM
             entry_ok = await self._verify_checkout_entry(page)
             checks["checkout_entry"] = {
                 "status": "PASS" if entry_ok else "WARN",
                 "reason_code": "NONE" if entry_ok else "ENTRY_UNPROVEN",
                 "summary": "Recognizable checkout entry UI loaded" if entry_ok else "Checkout entry UI unproven",
+                "expected": "Checkout form or container present in DOM",
+                "observed": "Checkout DOM verified" if entry_ok else "Checkout DOM unproven",
             }
 
             # Fill synthetic dummy contact/address if inputs exist
@@ -486,6 +609,9 @@ class ShopifyCheckoutBlockerAuditor(Skill):
                 "broken_element": checks.get(failed_stage, {}).get("broken_element") if failed_stage else None,
                 "expected": checks.get(failed_stage, {}).get("expected"),
                 "observed": checks.get(failed_stage, {}).get("observed"),
+                "target_product_id": target_product_id,
+                "target_variant_id": target_variant_id,
+                "target_line_key": target_line_key,
                 "initial_item_count": cart_meta["item_count"],
                 "cart_items": cart_items,
                 "order_pay_endpoints_called": order_pay_endpoints_called,
@@ -559,7 +685,6 @@ class ShopifyCheckoutBlockerAuditor(Skill):
         try:
             overlays = page.locator('.modal-backdrop:visible, .overlay:visible, [data-modal-overlay]:visible, .drawer-overlay:visible')
             if await overlays.count() > 0:
-                # Check if overlay obscures button pointer events
                 is_blocked = await page.evaluate("""
                     el => {
                         const rect = el.getBoundingClientRect();
@@ -573,55 +698,149 @@ class ShopifyCheckoutBlockerAuditor(Skill):
         return False
 
     async def _verify_checkout_entry(self, page) -> bool:
-        """Verify that page contains recognizable checkout entry UI elements."""
+        """Verify that page contains recognizable visible checkout entry UI elements. Excludes cart page forms."""
         try:
+            if "/cart" in page.url.lower() and "/checkout" not in page.url.lower():
+                return False
+
             selectors = [
                 '#checkout',
                 '.checkout-container',
-                'form[action*="/checkout"]',
                 'input[name*="email"]',
                 '.step[data-step]',
                 'h1:has-text("Checkout")',
                 'h2:has-text("Checkout")',
             ]
             for sel in selectors:
-                if await page.locator(sel).count() > 0:
+                loc = page.locator(sel).first
+                if await loc.count() > 0 and await loc.is_visible():
                     return True
         except Exception:
             pass
-        return "/checkout" in page.url.lower()
+        return False
 
     async def _fill_synthetic_address(self, page) -> dict[str, Any]:
-        """Fill synthetic dummy contact/address fields if present on local checkout form."""
+        """Fill synthetic dummy contact/address fields if present on local checkout form. Reclassify explicit address validation errors as WARN."""
         try:
-            email_field = page.locator('input[type="email"], input[name*="email"]').first
-            if await email_field.count() > 0 and await email_field.is_visible():
+            email_field = page.locator('input[type="email"]:visible, input[name*="email"]:visible').first
+            if await email_field.count() > 0:
                 await email_field.fill("test.user@example.test")
 
-            fname_field = page.locator('input[name*="first_name"], input[name*="firstname"]').first
-            if await fname_field.count() > 0 and await fname_field.is_visible():
+            fname_field = page.locator('input[name*="first_name"]:visible, input[name*="firstname"]:visible').first
+            if await fname_field.count() > 0:
                 await fname_field.fill("Jane")
 
-            lname_field = page.locator('input[name*="last_name"], input[name*="lastname"]').first
-            if await lname_field.count() > 0 and await lname_field.is_visible():
+            lname_field = page.locator('input[name*="last_name"]:visible, input[name*="lastname"]:visible').first
+            if await lname_field.count() > 0:
                 await lname_field.fill("Doe")
 
-            addr_field = page.locator('input[name*="address1"]').first
-            if await addr_field.count() > 0 and await addr_field.is_visible():
+            addr_field = page.locator('input[name*="address1"]:visible').first
+            if await addr_field.count() > 0:
                 await addr_field.fill("123 Synthetic Way")
 
-            city_field = page.locator('input[name*="city"]').first
-            if await city_field.count() > 0 and await city_field.is_visible():
+            city_field = page.locator('input[name*="city"]:visible').first
+            if await city_field.count() > 0:
                 await city_field.fill("Metropolis")
 
-            zip_field = page.locator('input[name*="zip"], input[name*="postal_code"]').first
-            if await zip_field.count() > 0 and await zip_field.is_visible():
+            zip_field = page.locator('input[name*="zip"]:visible, input[name*="postal_code"]:visible').first
+            if await zip_field.count() > 0:
                 await zip_field.fill("10001")
 
+            error_el = page.locator('.field__message--error:visible, .address-error:visible, [data-address-error]:visible').first
+            if await error_el.count() > 0:
+                err_text = await error_el.text_content()
+                return {
+                    "status": "WARN",
+                    "reason_code": "ADDRESS_VALIDATION_NOTICE",
+                    "summary": f"Synthetic contact/address entry notice: {err_text}",
+                    "expected": "Accepted synthetic address entry",
+                    "observed": err_text,
+                }
+
+            # Require physical address inputs (address1 AND zip) AND UI step transition/continuation proof
+            has_email = await email_field.count() > 0
+            has_addr = await addr_field.count() > 0
+            has_zip = await zip_field.count() > 0
+
+            if not (has_email and has_addr and has_zip):
+                return {
+                    "status": "WARN",
+                    "reason_code": "ADDRESS_INPUT_UNPROVEN",
+                    "summary": "Synthetic contact/address entry unproven in DOM (physical address inputs missing or incomplete)",
+                }
+
+            # Check for order completion buttons that MUST NEVER be clicked
+            order_pay_btns = page.locator(
+                'button:has-text("Place order"):visible, button:has-text("Pay now"):visible, '
+                'button:has-text("Complete order"):visible, button:has-text("Submit order"):visible, '
+                'button:has-text("Pay"):visible, [data-pay-button]:visible'
+            )
+
+            # Locate EXPLICIT address continuation buttons ONLY (never generic button[type="submit"])
+            continue_btn_selectors = [
+                'button[data-continue-to-shipping]:visible',
+                'button[name="continue_to_shipping"]:visible',
+                'button:has-text("Continue to shipping"):visible',
+                'button:has-text("Continue to delivery"):visible',
+                'button:has-text("Continue to payment"):visible',
+                '[data-address-continue-btn]:visible',
+            ]
+
+            continue_btn = None
+            for sel in continue_btn_selectors:
+                loc = page.locator(sel).first
+                if await loc.count() > 0 and await loc.is_visible():
+                    continue_btn = loc
+                    break
+
+            # If no explicit address continuation button is found or if button function is ambiguous -> return WARN without clicking
+            if not continue_btn:
+                return {
+                    "status": "WARN",
+                    "reason_code": "ADDRESS_INPUT_UNPROVEN",
+                    "summary": "Synthetic contact/address fields filled, but no explicit address continuation button found; click skipped for safety",
+                }
+
+            # Capture baseline count of next step elements BEFORE clicking continue
+            initial_next_step_count = await page.locator(
+                '.shipping-option:visible, [data-shipping-method]:visible, .step--current[data-step="shipping_method"]:visible, [data-shipping-methods-container]:visible'
+            ).count()
+
+            # Execute click on proven continue button
+            try:
+                await continue_btn.click(timeout=3000)
+                try:
+                    await page.wait_for_load_state("networkidle", timeout=3000)
+                except Exception:
+                    pass
+            except Exception as e:
+                return {
+                    "status": "WARN",
+                    "reason_code": "ADDRESS_INPUT_UNPROVEN",
+                    "summary": f"Contact/address continuation button click failed: {e}",
+                }
+
+            # Verify step transition: next step element count increased or new step container rendered after click
+            post_next_step_count = await page.locator(
+                '.shipping-option:visible, [data-shipping-method]:visible, .step--current[data-step="shipping_method"]:visible, [data-shipping-methods-container]:visible'
+            ).count()
+
+            # Prove that step state transitioned or new shipping/continuation UI loaded after the action
+            step_transition_proven = (post_next_step_count > initial_next_step_count) or (
+                await page.locator('.step--current[data-step="shipping_method"]:visible, [data-step="shipping_method"].is-active').count() > 0
+            )
+
+            if step_transition_proven:
+                return {
+                    "status": "PASS",
+                    "reason_code": "NONE",
+                    "summary": "Synthetic contact/address inputs accepted and step continuation verified successfully",
+                }
+
             return {
-                "status": "PASS",
-                "reason_code": "NONE",
-                "summary": "Synthetic contact and address inputs processed",
+                "status": "WARN",
+                "reason_code": "ADDRESS_INPUT_UNPROVEN",
+                "summary": "Contact/address fields entered, but UI step transition was unproven following continue button click",
             }
         except Exception as e:
             return {
@@ -631,29 +850,62 @@ class ShopifyCheckoutBlockerAuditor(Skill):
             }
 
     async def _check_shipping_step(self, page) -> dict[str, Any]:
-        """Check shipping options and ensure no infinite loading spinner blocks local checkout."""
+        """Check shipping options and ensure no infinite loading spinner or shipping ineligibility blocks local checkout."""
         try:
+            ineligible_el = page.locator('.shipping-error:visible, .notice--error:visible, [data-shipping-error]:visible').first
+            if await ineligible_el.count() > 0:
+                msg = await ineligible_el.text_content()
+                return {
+                    "status": "WARN",
+                    "reason_code": "SHIPPING_INELIGIBLE",
+                    "summary": f"Address or items ineligible for local shipping options: {msg}",
+                    "expected": "Valid shipping options loaded",
+                    "observed": msg,
+                }
+
             spinner = page.locator('.spinner:visible, .loading-spinner:visible, [data-shipping-loading]:visible').first
             if await spinner.count() > 0:
-                # Wait bounded timeout (3.0s) for spinner to vanish
                 start_spin = datetime.now()
                 while (datetime.now() - start_spin).total_seconds() < 3.0:
                     if await spinner.count() == 0 or not await spinner.is_visible():
                         break
                     await asyncio.sleep(0.3)
 
+                # Require affirmative proof of address eligibility and valid response before issuing FAIL
+                shipping_opts = page.locator('.shipping-option:visible, [data-shipping-method]:visible, input[name*="shipping"]:visible, .content-box__row:visible').first
+                has_eligible_options = await shipping_opts.count() > 0
+
                 if await spinner.count() > 0 and await spinner.is_visible():
-                    return {
-                        "status": "FAIL",
-                        "reason_code": "SHIPPING_SPINNER_TIMEOUT",
-                        "summary": "Shipping options loading spinner hung indefinitely without completing",
-                        "broken_element": "shipping_loading_spinner",
-                    }
+                    if has_eligible_options:
+                        return {
+                            "status": "FAIL",
+                            "reason_code": "SHIPPING_SPINNER_TIMEOUT",
+                            "summary": "Shipping options loading spinner hung indefinitely despite eligible shipping methods present",
+                            "broken_element": "shipping_loading_spinner",
+                            "expected": "Shipping options loaded and spinner dismissed",
+                            "observed": "Loading spinner hung past timeout with eligible methods present",
+                        }
+                    else:
+                        return {
+                            "status": "WARN",
+                            "reason_code": "ADDRESS_VALIDATION_NOTICE",
+                            "summary": "Shipping options spinner timed out without affirmative proof of address eligibility",
+                            "expected": "Affirmative proof of shipping eligibility",
+                            "observed": "Spinner pending without confirmed eligibility",
+                        }
+
+            shipping_opts = page.locator('.shipping-option:visible, [data-shipping-method]:visible, input[name*="shipping"]:visible, .content-box__row:visible').first
+            if await shipping_opts.count() > 0:
+                return {
+                    "status": "PASS",
+                    "reason_code": "NONE",
+                    "summary": "Shipping step options verified visible in DOM",
+                }
 
             return {
-                "status": "PASS",
-                "reason_code": "NONE",
-                "summary": "Shipping step options loaded successfully",
+                "status": "WARN",
+                "reason_code": "SHIPPING_OPTIONS_UNPROVEN",
+                "summary": "Shipping options DOM elements unproven in current view",
             }
         except Exception as e:
             return {
@@ -665,14 +917,13 @@ class ShopifyCheckoutBlockerAuditor(Skill):
     async def _check_payment_step_access(self, page) -> dict[str, Any]:
         """Verify payment step elements are visible without attempting order completion or entering payment credentials."""
         try:
-            # STOP HERE GUARDRAIL: Verify elements only, DO NOT CLICK PAY / PLACE ORDER!
             payment_selectors = [
-                '#payment-methods',
-                '.payment-step',
-                '[data-payment-option]',
-                'input[name*="payment"]',
-                '.card-fields-container',
-                'h2:has-text("Payment")',
+                '#payment-methods:visible',
+                '.payment-step:visible',
+                '[data-payment-option]:visible',
+                'input[name*="payment"]:visible',
+                '.card-fields-container:visible',
+                'h2:has-text("Payment"):visible',
             ]
             found = False
             for sel in payment_selectors:
@@ -683,7 +934,7 @@ class ShopifyCheckoutBlockerAuditor(Skill):
             return {
                 "status": "PASS" if found else "WARN",
                 "reason_code": "NONE" if found else "PAYMENT_STEP_UNPROVEN",
-                "summary": "Payment step elements verified accessible" if found else "Payment step elements unproven in DOM",
+                "summary": "Payment step elements verified visible in DOM" if found else "Payment step elements unproven in DOM",
             }
         except Exception as e:
             return {
@@ -727,7 +978,9 @@ class ShopifyCheckoutBlockerAuditor(Skill):
             else:
                 return None
 
-            return path
+            if os.path.exists(path) and os.path.getsize(path) > 0:
+                return path
+            return None
         except Exception as e:
             logger.debug("Screenshot capture failed: %s", e)
             return None
