@@ -2,9 +2,9 @@ name: Phase 6 Windows CI
 
 on:
   push:
-    branches: [ phase6-checkout-blockers ]
+    branches: [ phase6-checkout-blockers, phase5-cart-consistency-5762410192963511416, nano-sre-recovery-20261007 ]
   pull_request:
-    branches: [ phase6-checkout-blockers, nano-sre-recovery-20261007 ]
+    branches: [ phase6-checkout-blockers, phase5-cart-consistency-5762410192963511416, nano-sre-recovery-20261007 ]
 
 jobs:
   phase6-windows-ci:
