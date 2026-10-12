@@ -1,0 +1,57 @@
+name: Phase 6 Windows CI
+
+on:
+  push:
+    branches: [ phase6-checkout-blockers, phase5-cart-consistency-5762410192963511416, nano-sre-recovery-20261007 ]
+  pull_request:
+    branches: [ phase6-checkout-blockers, phase5-cart-consistency-5762410192963511416, nano-sre-recovery-20261007 ]
+
+jobs:
+  phase6-windows-ci:
+    runs-on: windows-latest
+    env:
+      MCP_ENABLED: "false"
+      LLM_PROVIDER: "openai"
+      LLM_API_KEY: ""
+      PYTHONUTF8: "1"
+      PYTHONPATH: "src"
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Dependencies & Playwright
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          pip install pytest pytest-playwright pytest-asyncio
+          playwright install chromium
+
+      - name: Run Full Pytest Suite (Phase 6)
+        run: |
+          python -m pytest tests/ -v --tb=short --junitxml=phase6_junit.xml
+
+      - name: Run Standalone Phase 6 CLI Verification Script
+        run: |
+          python scripts/run_phase6_cli_verification.py
+
+      - name: Bundle Artifacts
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p ci_artifacts
+          cp -f phase6_junit.xml ci_artifacts/ 2>/dev/null || true
+          cp -r verification_output/phase6_run_* ci_artifacts/ 2>/dev/null || true
+          cp -r reports/screenshots ci_artifacts/ 2>/dev/null || true
+
+      - name: Upload Phase 6 Windows CI Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase6-windows-ci-artifacts
+          path: ci_artifacts/
