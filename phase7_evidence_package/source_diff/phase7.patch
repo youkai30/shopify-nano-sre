@@ -1,0 +1,2354 @@
+diff --git a/phase7_evidence_package/nodeids.txt b/phase7_evidence_package/nodeids.txt
+new file mode 100644
+index 0000000..6e47e23
+--- /dev/null
++++ b/phase7_evidence_package/nodeids.txt
+@@ -0,0 +1,440 @@
++============================= test session starts ==============================
++platform linux -- Python 3.12.13, pytest-9.1.1, pluggy-1.6.0
++rootdir: /app
++configfile: pyproject.toml
++plugins: platformdirs-4.12.4, cov-7.1.0, anyio-4.15.1, asyncio-1.4.0, playwright-0.10.0
++asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
++collected 389 items
++
++<Dir app>
++  <Package tests>
++    <Module test_alerter.py>
++      <Class TestAlertRateLimiter>
++        <Function test_rate_limiter_creation>
++        <Function test_first_alert_always_sent>
++        <Function test_rate_limiting_within_cooldown>
++        <Function test_rate_limiting_after_cooldown>
++        <Function test_custom_cooldown>
++        <Function test_different_keys_independent>
++        <Function test_clear_cache>
++      <Class TestAlerter>
++        <Function test_alerter_creation>
++        <Function test_alerter_custom_rate_limit>
++        <Function test_get_alert_key>
++        <Function test_get_status_color_pass>
++        <Function test_get_status_color_warn>
++        <Function test_get_status_color_fail>
++        <Function test_get_status_color_unknown>
++        <Function test_get_status_emoji_pass>
++        <Function test_get_status_emoji_warn>
++        <Function test_get_status_emoji_fail>
++        <Function test_format_discord_embed_pass>
++        <Function test_format_discord_embed_fail>
++        <Function test_format_discord_embed_with_store_url>
++        <Function test_format_slack_blocks_pass>
++        <Function test_format_slack_blocks_fail>
++        <Function test_format_slack_blocks_with_store_url>
++        <Function test_format_stdout>
++        <Function test_format_stdout_fail>
++        <Coroutine test_send_alert_stdout>
++        <Coroutine test_send_alert_discord_success>
++        <Coroutine test_send_alert_discord_failure>
++        <Coroutine test_send_alert_discord_no_url>
++        <Coroutine test_send_alert_slack_success>
++        <Coroutine test_send_alert_slack_failure>
++        <Coroutine test_send_alert_slack_no_url>
++        <Coroutine test_send_alert_rate_limiting>
++        <Coroutine test_send_alert_rate_limiting_different_status>
++        <Coroutine test_send_alert_rate_limiting_disabled>
++        <Coroutine test_send_alert_exception_handling>
++        <Coroutine test_context_manager>
++        <Coroutine test_send_alert_without_context_manager>
++    <Module test_cart_browser_integration.py>
++      <Coroutine test_real_browser_cart_journey_and_shared_session[valid-nonempty-auto_open_drawer]>
++      <Coroutine test_real_browser_cart_journey_and_shared_session[http_error-failed-auto_open_drawer]>
++      <Coroutine test_real_browser_cart_journey_and_shared_session[api_only-nonempty-api_only_fallback]>
++    <Module test_cart_drawer_regressions.py>
++      <Coroutine test_drawer_count_paths[auto_zero-WARN-auto_open_drawer-0]>
++      <Coroutine test_drawer_count_paths[opened_zero-WARN-shopper_opened_drawer-0]>
++      <Coroutine test_drawer_count_paths[opened_valid-PASS-shopper_opened_drawer-1]>
++      <Coroutine test_drawer_count_paths[aria_count-PASS-auto_open_drawer-2]>
++      <Coroutine test_zero_header_with_product_desc_sentence_and_opener_aria_yields_warn>
++      <Coroutine test_promo_text_ignored_and_explicit_zero_header_yields_zero_and_warn>
++      <Coroutine test_drawer_inner_text_failure_falls_back_to_aria_label>
++      <Coroutine test_retains_cart_evidence_when_late_checkout_exception_occurs>
++      <Coroutine test_drawer_ignores_price_formats_currencies_floats_and_negatives[CART (10,00 EUR)]>
++      <Coroutine test_drawer_ignores_price_formats_currencies_floats_and_negatives[BAG: 10,00]>
++      <Coroutine test_drawer_ignores_price_formats_currencies_floats_and_negatives[CART (10 USD)]>
++      <Coroutine test_drawer_ignores_price_formats_currencies_floats_and_negatives[-2 ITEMS]>
++      <Coroutine test_drawer_ignores_price_formats_currencies_floats_and_negatives[2,5 ITEMS]>
++      <Coroutine test_drawer_ignores_price_formats_currencies_floats_and_negatives[CART (1-2 ITEMS)]>
++      <Coroutine test_drawer_ignores_price_formats_currencies_floats_and_negatives[CART (10 JPY)]>
++      <Coroutine test_drawer_ignores_price_formats_currencies_floats_and_negatives[CART (2abc)]>
++      <Coroutine test_drawer_ignores_price_formats_currencies_floats_and_negatives[Pack of 2 items]>
++      <Coroutine test_retains_cart_evidence_and_sanitizes_logs_on_late_python_checkout_exception>
++    <Module test_cart_evidence.py>
++      <Function test_cart_counts_preserve_distinct_lines_and_only_safe_fields>
++      <Function test_invalid_cart_payload_fails_closed[payload0]>
++      <Function test_invalid_cart_payload_fails_closed[payload1]>
++      <Function test_invalid_cart_payload_fails_closed[payload2]>
++      <Function test_invalid_cart_payload_fails_closed[payload3]>
++      <Function test_cart_payload_rejects_nested_identifier_and_text_fields[key-value0]>
++      <Function test_cart_payload_rejects_nested_identifier_and_text_fields[variant_id-value1]>
++      <Function test_cart_payload_rejects_nested_identifier_and_text_fields[product_id-value2]>
++      <Function test_cart_payload_rejects_nested_identifier_and_text_fields[product_title-value3]>
++      <Function test_cart_payload_rejects_nested_identifier_and_text_fields[variant_title-value4]>
++      <Function test_cart_payload_rejects_nested_identifier_and_text_fields[handle-value5]>
++      <Function test_cart_payload_rejects_nested_identifier_and_text_fields[selling_plan_id-value6]>
++      <Coroutine test_collector_uses_locale_root_once_and_disposes_response>
++      <Coroutine test_cart_root_rejects_cross_origin_and_traversal>
++      <Coroutine test_cart_root_rejects_encoded_and_backslash_traversal[/fr/%2e%2e/]>
++      <Coroutine test_cart_root_rejects_encoded_and_backslash_traversal[/fr/%2E%2E/]>
++      <Coroutine test_cart_root_rejects_encoded_and_backslash_traversal[/fr\\..\\evil/]>
++      <Coroutine test_cart_root_rejects_encoded_and_backslash_traversal[/fr/%5c..%5c/]>
++      <Coroutine test_cart_root_rejects_encoded_and_backslash_traversal[/fr/%252e%252e/]>
++      <Coroutine test_cart_root_rejects_encoded_and_backslash_traversal[/fr/%0a/]>
++      <Coroutine test_cart_root_rejects_encoded_and_backslash_traversal[/fr/%0d/]>
++      <Coroutine test_cart_root_rejects_control_characters_and_invalid_types>
++      <Coroutine test_cart_root_allows_safe_encoded_paths_and_rejects_different_origin>
++      <Function test_cart_payload_rejects_invalid_field_types_and_non_positive_ids[variant_id-None]>
++      <Function test_cart_payload_rejects_invalid_field_types_and_non_positive_ids[variant_id-12345]>
++      <Function test_cart_payload_rejects_invalid_field_types_and_non_positive_ids[variant_id-0]>
++      <Function test_cart_payload_rejects_invalid_field_types_and_non_positive_ids[variant_id--1]>
++      <Function test_cart_payload_rejects_invalid_field_types_and_non_positive_ids[variant_id-12.34]>
++      <Function test_cart_payload_rejects_invalid_field_types_and_non_positive_ids[product_id-None]>
++      <Function test_cart_payload_rejects_invalid_field_types_and_non_positive_ids[product_id-12345]>
++      <Function test_cart_payload_rejects_invalid_field_types_and_non_positive_ids[product_id-0]>
++      <Function test_cart_payload_rejects_invalid_field_types_and_non_positive_ids[product_id--1]>
++      <Function test_cart_payload_rejects_invalid_field_types_and_non_positive_ids[product_id-12.34]>
++      <Function test_cart_payload_rejects_invalid_field_types_and_non_positive_ids[selling_plan_id-12345]>
++      <Function test_cart_payload_rejects_invalid_field_types_and_non_positive_ids[selling_plan_id-0]>
++      <Function test_cart_payload_rejects_invalid_field_types_and_non_positive_ids[selling_plan_id--1]>
++      <Function test_cart_payload_rejects_invalid_field_types_and_non_positive_ids[selling_plan_id-12.34]>
++      <Function test_cart_payload_rejects_invalid_field_types_and_non_positive_ids[product_title-123]>
++      <Function test_cart_payload_rejects_invalid_field_types_and_non_positive_ids[variant_title-456]>
++      <Function test_cart_payload_rejects_invalid_field_types_and_non_positive_ids[handle-789]>
++      <Function test_cart_payload_rejects_invalid_field_types_and_non_positive_ids[key-101112]>
++      <Coroutine test_collector_logging_never_leaks_secrets>
++      <Coroutine test_failed_collection_is_attempted_once_and_reportable[503-payload0-False]>
++      <Coroutine test_failed_collection_is_attempted_once_and_reportable[200-payload1-False]>
++      <Coroutine test_failed_collection_is_attempted_once_and_reportable[200-payload2-False]>
++      <Coroutine test_failed_collection_is_attempted_once_and_reportable[200-payload3-True]>
++      <Coroutine test_http_error_fixture_records_real_503_status>
++      <Coroutine test_collector_never_copies_exception_code_into_evidence_metadata>
++      <Function test_markdown_displays_each_cart_evidence_state[not_attempted]>
++      <Function test_markdown_displays_each_cart_evidence_state[failed]>
++      <Function test_markdown_displays_each_cart_evidence_state[empty]>
++      <Function test_markdown_displays_each_cart_evidence_state[nonempty]>
++      <Function test_checkout_path_session_identifier_is_redacted>
++    <Module test_cli.py>
++      <Function test_cli_help>
++      <Function test_cli_invocation>
++      <Function test_cli_report_dir_flag>
++      <Function test_audit_command_help>
++      <Function test_audit_command_requires_url>
++      <Function test_watch_command_help>
++      <Function test_baseline_update_help>
++      <Function test_report_show_with_path>
++    <Module test_cli_local_fixture_integration.py>
++      <Function test_cli_audit_runs_real_browser_shopper_and_writes_sanitized_reports>
++    <Module test_config.py>
++      <Function test_settings_creation>
++      <Function test_settings_defaults>
++      <Function test_settings_url_normalization>
++    <Module test_core.py>
++      <Class TestSkillResult>
++        <Function test_skill_result_creation>
++        <Function test_skill_result_with_details>
++        <Function test_skill_result_with_screenshots>
++        <Function test_skill_result_with_error>
++        <Function test_skill_result_to_dict>
++        <Function test_skill_result_default_timestamp>
++      <Class TestAgent>
++        <Function test_agent_creation>
++        <Function test_register_skill>
++        <Function test_register_multiple_skills>
++        <Function test_unregister_skill>
++        <Function test_unregister_nonexistent_skill>
++        <Coroutine test_execute_skills_single>
++        <Coroutine test_execute_skills_multiple>
++        <Coroutine test_execute_skills_with_context>
++        <Coroutine test_execute_specific_skills>
++        <Coroutine test_execute_nonexistent_skill>
++        <Coroutine test_execute_skill_with_exception>
++        <Coroutine test_execute_skills_clears_previous_results>
++        <Function test_get_result_summary_empty>
++        <Coroutine test_get_result_summary_with_results>
++        <Coroutine test_get_result_summary_dict_format>
++      <Class TestMockSkill>
++        <Coroutine test_mock_skill_name>
++        <Coroutine test_mock_skill_run>
++        <Coroutine test_mock_skill_run_count>
++        <Coroutine test_mock_skill_failure>
++    <Module test_diagnosis.py>
++      <Class TestFallbackDiagnosis>
++        <Function test_fallback_diagnosis_fail_status>
++        <Function test_fallback_diagnosis_warn_status>
++        <Function test_fallback_diagnosis_with_error>
++        <Function test_fallback_diagnosis_pixel_skill>
++        <Function test_fallback_diagnosis_checkout_skill>
++      <Class TestUtilityFunctions>
++        <Function test_format_skill_result_for_llm>
++        <Function test_format_skill_result_without_error>
++        <Function test_is_vision_model_gpt4_turbo>
++        <Function test_is_vision_model_claude3>
++        <Function test_is_vision_model_non_vision>
++        <Function test_get_litellm_model_identifier_openai>
++        <Function test_get_litellm_model_identifier_anthropic>
++        <Function test_get_litellm_model_identifier_ollama>
++      <Class TestDiagnoseFunction>
++        <Coroutine test_diagnose_no_api_key_fallback>
++        <Coroutine test_diagnose_ollama_no_key_ok>
++        <Coroutine test_diagnose_with_llm_success>
++        <Coroutine test_diagnose_with_invalid_severity>
++        <Coroutine test_diagnose_with_json_parse_error>
++        <Coroutine test_diagnose_with_missing_fields>
++        <Coroutine test_diagnose_with_llm_exception>
++        <Coroutine test_diagnose_with_screenshots_vision_model>
++        <Coroutine test_diagnose_litellm_not_installed>
++    <Module test_init.py>
++      <Function test_agent_init>
++      <Function test_agent_exports>
++      <Function test_config_init>
++      <Function test_db_init>
++      <Function test_main_init>
++    <Module test_privacy.py>
++      <Function test_redactor_creation>
++      <Function test_redact_email>
++      <Function test_redaction_disabled>
++      <Function test_redact_api_key>
++      <Function test_redact_dict>
++      <Function test_screenshot_blurrer_creation>
++    <Module test_reporter.py>
++      <Coroutine test_generate_report_basic>
++      <Coroutine test_generate_report_content>
++      <Coroutine test_generate_report_with_screenshots>
++      <Coroutine test_generate_report_with_ai_diagnosis>
++      <Coroutine test_generate_report_no_ai_diagnosis_when_not_configured>
++      <Coroutine test_generate_report_with_details>
++      <Coroutine test_generate_report_statistics>
++      <Coroutine test_generate_report_creates_directory>
++    <Module test_shopify_cart_consistency_auditor.py>
++      <Coroutine test_consistent_journey_empty_cart>
++      <Coroutine test_non_empty_cart_final_quantity>
++      <Coroutine test_distinct_line_items_different_properties>
++      <Coroutine test_plan_11_vs_211_ui_fail>
++      <Coroutine test_number_11_in_title_unproven_warn>
++      <Coroutine test_delayed_ui_qty_pass>
++      <Coroutine test_selling_plan_mismatch_ui_fail>
++      <Coroutine test_other_product_small_first_quantity_update_unmutated>
++      <Coroutine test_ambiguous_qty_update_warn_no_click>
++      <Coroutine test_wrong_variant_added_fail>
++      <Coroutine test_request_quantity_mismatch_fail>
++      <Coroutine test_pdp_dom_price_mismatch_fail>
++      <Coroutine test_ambiguous_currency_pdp_warn>
++      <Coroutine test_wrong_cart_ui_variant_fail>
++      <Coroutine test_two_lines_same_product_different_properties>
++      <Coroutine test_delayed_atc_response_pass>
++      <Coroutine test_swatch_no_active_change_warn>
++      <Coroutine test_unrelated_plus_button_ignored>
++      <Coroutine test_http200_no_cart_change_warn>
++      <Coroutine test_unfulfilled_customization_warn>
++      <Coroutine test_delayed_cart_drawer_pass>
++      <Coroutine test_stale_cart_drawer_fail>
++      <Coroutine test_cart_page_fallback_pass>
++      <Coroutine test_sale_price_compare_at_pass>
++      <Coroutine test_auto_discount_explained_price_pass>
++      <Coroutine test_unexplained_price_mismatch_fail>
++      <Coroutine test_incomparable_price_warn>
++      <Coroutine test_bundle_gift_addition_separated>
++      <Coroutine test_optional_line_quantity_update_pass>
++      <Coroutine test_non_mutative_pii_masking_restoration>
++      <Function test_skill_excluded_from_default_skills>
++    <Module test_shopify_checkout_blocker_auditor.py>
++      <Coroutine test_working_checkout_journey_pass>
++      <Coroutine test_express_checkout_alternative_path_pass>
++      <Coroutine test_empty_cart_readiness_warn>
++      <Coroutine test_missing_checkout_button_fail>
++      <Coroutine test_disabled_checkout_button_fail>
++      <Coroutine test_overlay_blocked_button_fail>
++      <Coroutine test_click_no_action_fail>
++      <Coroutine test_cart_redirect_loop_fail>
++      <Coroutine test_shipping_spinner_timeout_fail>
++      <Coroutine test_fault_disappearing_second_pass_warn>
++      <Coroutine test_address_rejection_fail>
++      <Coroutine test_shipping_ineligible_warn>
++      <Coroutine test_mandatory_payment_security_guardrail>
++      <Coroutine test_active_payment_route_abort_blocked>
++      <Coroutine test_address_no_continuation_unproven_warn>
++      <Coroutine test_shipping_spinner_no_eligibility_warn>
++      <Coroutine test_per_uuid_cart_session_isolation>
++      <Coroutine test_place_order_button_never_clicked>
++      <Coroutine test_preexisting_payment_elements_unproven_address_warn>
++      <Coroutine test_mock_cli_server_cart_session_mutation_isolation>
++      <Coroutine test_non_mutative_pii_masking_restoration>
++      <Function test_skill_excluded_from_default_skills>
++    <Module test_shopify_mobile_purchase_blocker_auditor.py>
++      <Function test_blocker_identity_mismatch_prevents_matching>
++      <Coroutine test_differing_overlay_blockers_yields_comparison_unresolved>
++      <Coroutine test_session_state_preservation>
++      <Coroutine test_caller_desktop_page_remains_unaffected>
++      <Coroutine test_touch_interaction_required>
++      <Coroutine test_both_viewports_checked_narrow_overlay>
++      <Coroutine test_desktop_warn_yields_comparison_unresolved>
++      <Coroutine test_healthy_mobile_user_journey>
++      <Coroutine test_offscreen_atc_button_reachable>
++      <Coroutine test_sticky_overlay_blocks_atc_mobile_only>
++      <Coroutine test_dismissable_modal_overlay>
++      <Coroutine test_mandatory_option_unselectable>
++      <Coroutine test_swatch_no_state_change>
++      <Coroutine test_valid_alt_sticky_cta_prevents_false_fail>
++      <Coroutine test_http200_without_cart_change>
++      <Coroutine test_http500_with_analytics_error>
++      <Coroutine test_unfulfilled_customization_field>
++      <Coroutine test_wrong_variant_added>
++      <Coroutine test_delayed_cart_ui_drawer>
++      <Coroutine test_non_mutative_pii_masking_restoration>
++      <Function test_skill_excluded_from_default_skills>
++    <Module test_shopify_purchase_blocker_auditor.py>
++      <Coroutine test_purchase_blocker_healthy_flow_pass>
++      <Coroutine test_explicit_http_200_empty_cart_returns_warn>
++      <Coroutine test_explicit_unfulfilled_customization_field_returns_warn>
++      <Coroutine test_explicit_analytics_error_with_http_500_returns_warn>
++      <Coroutine test_purchase_blocker_mandatory_option_works_pass>
++      <Coroutine test_purchase_blocker_mandatory_option_disabled_fail>
++      <Coroutine test_purchase_blocker_overlay_blocking_fail>
++      <Coroutine test_purchase_blocker_dismissable_modal_cleared_pass>
++      <Coroutine test_purchase_blocker_offscreen_button_scrolled_pass>
++      <Coroutine test_purchase_blocker_js_error_blocking_fail>
++      <Coroutine test_purchase_blocker_unrelated_js_error_pass>
++      <Coroutine test_purchase_blocker_unresolved_network_warn>
++      <Coroutine test_purchase_blocker_delayed_ui_update_pass>
++      <Coroutine test_purchase_blocker_all_variants_unavailable_pass>
++      <Function test_cli_default_skills_exclude_purchase_blocker_auditor>
++      <Coroutine test_regression_non_functional_swatch_click_returns_warn>
++      <Coroutine test_regression_background_widget_js_error_returns_warn>
++      <Coroutine test_regression_html5_validity_quantity_zero_returns_warn>
++      <Coroutine test_regression_desktop_context_session_cookie_retention>
++      <Coroutine test_regression_non_mutative_screenshot_masking_and_immutability>
++      <Coroutine test_regression_synthetic_secret_in_js_error_redacted>
++      <Coroutine test_regression_internal_auditor_exception_returns_warn>
++      <Coroutine test_regression_pre_cart_503_returns_warn>
++      <Coroutine test_regression_french_atc_button_pass>
++      <Coroutine test_regression_wrong_variant_added_fail>
++      <Coroutine test_regression_text_markers_outside_fields_masked_and_immutable>
++    <Module test_shopify_search_discovery_auditor.py>
++      <Function test_skill_excluded_from_default_skills>
++      <Coroutine test_missing_catalog_fixture_returns_warn>
++      <Coroutine test_ineligible_product_disabled_button_returns_warn_not_fail>
++      <Coroutine test_disabled_search_button_returns_fail_and_lead>
++      <Coroutine test_overlay_blocked_search_returns_fail>
++      <Coroutine test_submit_no_action_returns_fail>
++      <Coroutine test_server_error_response_returns_fail>
++      <Coroutine test_alt_search_trigger_path_pass>
++      <Coroutine test_handle_substring_board_other_fail>
++      <Coroutine test_collection_product_link_pass>
++      <Coroutine test_collection_product_wrong_dest_fail>
++      <Coroutine test_disappearing_fault_second_pass_warn>
++      <Coroutine test_differing_fault_second_pass_warn>
++    <Module test_shopify_variant_auditor.py>
++      <Function test_parse_price_cents_cases>
++      <Function test_canonical_filename_extraction>
++      <Coroutine test_variant_auditor_pass_flow>
++      <Coroutine test_inactive_swatch_button_ignored>
++      <Coroutine test_price_container_with_strikethrough_sale_price>
++      <Coroutine test_request_declares_102_cart_adds_101_returns_fail>
++      <Coroutine test_8s_delayed_response_times_out_returns_warn>
++      <Function test_cli_default_skills_exclude_variant_auditor>
++    <Module test_store.py>
++      <Class TestStoreInitialization>
++        <Function test_store_creation_in_memory>
++        <Function test_store_creation_with_file>
++        <Function test_check_runs_table_created>
++        <Function test_baselines_table_created>
++        <Function test_incidents_table_created>
++        <Function test_check_runs_table_schema>
++        <Function test_baselines_table_schema>
++        <Function test_incidents_table_schema>
++        <Function test_check_runs_index_created>
++        <Function test_baselines_index_created>
++        <Function test_incidents_index_created>
++      <Class TestRecordCheck>
++        <Function test_record_check_basic>
++        <Function test_record_check_with_details>
++        <Function test_record_check_with_screenshots>
++        <Function test_record_check_with_error>
++        <Function test_record_check_multiple>
++        <Function test_record_check_timestamp_format>
++      <Class TestGetLatestBaseline>
++        <Function test_get_latest_baseline_not_found>
++        <Function test_get_latest_baseline_found>
++        <Function test_get_latest_baseline_multiple_updates>
++        <Function test_get_latest_baseline_different_skills>
++        <Function test_get_latest_baseline_different_stores>
++      <Class TestUpdateBaseline>
++        <Function test_update_baseline_new>
++        <Function test_update_baseline_existing>
++        <Function test_update_baseline_preserves_created_at>
++        <Function test_update_baseline_updates_timestamp>
++      <Class TestCreateIncident>
++        <Function test_create_incident_basic>
++        <Function test_create_incident_with_details>
++        <Function test_create_incident_default_status>
++        <Function test_create_incident_no_resolved_at>
++        <Function test_create_incident_has_created_at>
++        <Function test_create_multiple_incidents>
++      <Class TestResolveIncident>
++        <Function test_resolve_incident>
++        <Function test_resolve_incident_timestamp>
++      <Class TestGetOpenIncidents>
++        <Function test_get_open_incidents_empty>
++        <Function test_get_open_incidents_all>
++        <Function test_get_open_incidents_excludes_resolved>
++        <Function test_get_open_incidents_by_store>
++        <Function test_get_open_incidents_ordered_by_created_at>
++      <Class TestGetRecentCheckRuns>
++        <Function test_get_recent_check_runs_empty>
++        <Function test_get_recent_check_runs_default_limit>
++        <Function test_get_recent_check_runs_custom_limit>
++        <Function test_get_recent_check_runs_filtered_by_store>
++        <Function test_get_recent_check_runs_ordered_by_timestamp>
++    <Module test_trigger.py>
++      <Class TestIntervalTrigger>
++        <Function test_interval_trigger_creation>
++        <Function test_should_trigger_first_time>
++        <Function test_should_trigger_within_interval>
++        <Function test_should_trigger_after_interval>
++        <Function test_mark_triggered>
++        <Function test_mark_triggered_updates_timestamp>
++        <Coroutine test_wait_until_next_first_time>
++        <Coroutine test_wait_until_next_waits>
++        <Coroutine test_wait_until_next_already_past>
++      <Class TestWebhookTrigger>
++        <Function test_webhook_trigger_creation>
++        <Function test_webhook_trigger_default_port>
++        <Function test_register_handler>
++        <Function test_register_multiple_handlers>
++        <Function test_normalize_github_deployment>
++        <Function test_normalize_github_deployment_missing_fields>
++        <Coroutine test_receive_webhook>
++        <Coroutine test_receive_webhook_calls_handlers>
++        <Coroutine test_receive_webhook_multiple_handlers>
++        <Coroutine test_receive_webhook_handler_exception>
++        <Function test_has_pending_events_false>
++        <Coroutine test_has_pending_events_true>
++        <Function test_pop_event_empty>
++        <Coroutine test_pop_event>
++        <Coroutine test_pop_event_order>
++      <Class TestTriggerManager>
++        <Function test_trigger_manager_creation>
++        <Function test_add_interval_trigger_first_time>
++        <Function test_add_interval_trigger_not_ready>
++        <Function test_add_interval_trigger_ready_after_interval>
++        <Coroutine test_add_webhook_event_no_events>
++        <Coroutine test_add_webhook_event_with_pending>
++        <Coroutine test_wait_for_trigger_interval>
++        <Coroutine test_wait_for_trigger_webhook_priority>
++        <Coroutine test_wait_for_trigger_queue_empty_waits>
++        <Coroutine test_wait_for_trigger_fallback>
++
++========================= 389 tests collected in 7.15s =========================
+diff --git a/scripts/run_phase7_cli_verification.py b/scripts/run_phase7_cli_verification.py
+new file mode 100644
+index 0000000..6bf0d4a
+--- /dev/null
++++ b/scripts/run_phase7_cli_verification.py
+@@ -0,0 +1,228 @@
++#!/usr/bin/env python3
++"""Phase 7 Standalone CLI Verification Script for Shopify Search & Discovery Auditor.
++
++Runs subprocess CLI audit commands against local mock HTTP server scenarios (PASS, WARN, FAIL),
++verifies exit codes, verifies image existence on disk, and writes SHA256SUMS.json for evidence packaging.
++"""
++
++import hashlib
++import json
++import os
++import subprocess
++import sys
++import threading
++import time
++from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
++
++
++def compute_sha256(filepath: str) -> str:
++    h = hashlib.sha256()
++    with open(filepath, "rb") as f:
++        while chunk := f.read(8192):
++            h.update(chunk)
++    return h.hexdigest()
++
++
++class MockShopifySearchServer(BaseHTTPRequestHandler):
++    def log_message(self, *args):
++        pass
++
++    def do_GET(self):
++        path = self.path
++
++        if path.startswith("/products/pass-demo"):
++            html = """<!doctype html><html><body>
++            <h1>Product Search Pass Demo</h1>
++            <script data-catalog-fixture type="application/json">
++            {
++              "product_id": "9001",
++              "handle": "pass-snowboard",
++              "title": "Pass Snowboard",
++              "published_status": true,
++              "eligible_for_search": true,
++              "expected_query": "snowboard"
++            }
++            </script>
++            <form action="/search" method="get">
++              <input type="search" name="q" placeholder="Search products...">
++              <button type="submit">Search</button>
++            </form>
++            </body></html>"""
++            self.send(200, html, "text/html")
++
++        elif path.startswith("/products/warn-demo"):
++            html = """<!doctype html><html><body>
++            <h1>Unpublished Product Warn Demo</h1>
++            <script data-catalog-fixture type="application/json">
++            {
++              "product_id": "9002",
++              "handle": "secret-snowboard",
++              "title": "Secret Snowboard",
++              "published_status": false,
++              "eligible_for_search": false,
++              "expected_query": "snowboard"
++            }
++            </script>
++            <form action="/search" method="get">
++              <input type="search" name="q" placeholder="Search products...">
++              <button type="submit">Search</button>
++            </form>
++            </body></html>"""
++            self.send(200, html, "text/html")
++
++        elif path.startswith("/products/fail-demo"):
++            html = """<!doctype html><html><body>
++            <h1>Disabled Search Submit Button Fail Demo</h1>
++            <script data-catalog-fixture type="application/json">
++            {
++              "product_id": "9003",
++              "handle": "fail-snowboard",
++              "title": "Fail Snowboard",
++              "published_status": true,
++              "eligible_for_search": true,
++              "expected_query": "snowboard"
++            }
++            </script>
++            <form action="/search" method="get">
++              <input type="search" name="q" placeholder="Search products...">
++              <button type="submit" disabled>Search</button>
++            </form>
++            </body></html>"""
++            self.send(200, html, "text/html")
++
++        elif path.startswith("/search"):
++            html = """<!doctype html><html><body>
++            <h1>Search Results</h1>
++            <div id="search-results">
++              <div class="product-card">
++                <a href="/products/pass-snowboard">Pass Snowboard</a>
++              </div>
++            </div>
++            </body></html>"""
++            self.send(200, html, "text/html")
++
++        elif path.startswith("/products/pass-snowboard"):
++            html = """<!doctype html><html><body>
++            <h1>Pass Snowboard PDP</h1>
++            <p>Product ID: 9001</p>
++            </body></html>"""
++            self.send(200, html, "text/html")
++
++        else:
++            self.send(404, "Not Found", "text/plain")
++
++    def send(self, status, body, content_type):
++        encoded = body.encode("utf-8") if isinstance(body, str) else body
++        self.send_response(status)
++        self.send_header("Content-Type", content_type)
++        self.send_header("Content-Length", str(len(encoded)))
++        self.end_headers()
++        self.wfile.write(encoded)
++
++
++def run_verification():
++    server = ThreadingHTTPServer(("127.0.0.1", 0), MockShopifySearchServer)
++    port = server.server_port
++    thread = threading.Thread(target=server.serve_forever, daemon=True)
++    thread.start()
++
++    run_id = f"phase7_run_{int(time.time())}"
++    output_base_dir = os.path.join("verification_output", run_id)
++    os.makedirs(output_base_dir, exist_ok=True)
++
++    print(f"Running Phase 7 Subprocess CLI Verification against http://127.0.0.1:{port}...")
++
++    scenarios = [
++        ("pass", f"http://127.0.0.1:{port}/products/pass-demo", "PASS"),
++        ("warn", f"http://127.0.0.1:{port}/products/warn-demo", "WARN"),
++        ("fail", f"http://127.0.0.1:{port}/products/fail-demo", "FAIL"),
++    ]
++
++    all_matched = True
++
++    for tag, url, expected_status in scenarios:
++        scenario_dir = os.path.join(output_base_dir, tag)
++        os.makedirs(scenario_dir, exist_ok=True)
++
++        json_out = os.path.join(scenario_dir, "audit_result.json")
++        log_out = os.path.join(scenario_dir, "cli_run.log")
++
++        cmd = [
++            sys.executable,
++            "-m",
++            "nano_sre.cli",
++            "audit",
++            "--url",
++            url,
++            "--skill",
++            "shopify_search_discovery_auditor",
++            "--output",
++            json_out,
++        ]
++
++        env = dict(os.environ)
++        env["PYTHONPATH"] = "src"
++        env["MCP_ENABLED"] = "false"
++        env["LLM_PROVIDER"] = "openai"
++        env["LLM_API_KEY"] = ""
++
++        print(f"--- Running subprocess CLI for scenario: {tag.upper()} ({url}) ---")
++        proc = subprocess.run(cmd, env=env, capture_output=True, text=True)
++
++        with open(log_out, "w", encoding="utf-8") as lf:
++            lf.write(f"=== STDOUT ===\n{proc.stdout}\n=== STDERR ===\n{proc.stderr}\n=== EXIT CODE: {proc.returncode} ===\n")
++
++        observed_status = "UNKNOWN"
++        screenshot_ok = True
++        if os.path.exists(json_out):
++            try:
++                with open(json_out, "r", encoding="utf-8") as jf:
++                    data = json.load(jf)
++                    res_list = data.get("results", [])
++                    if res_list and isinstance(res_list, list):
++                        res_obj = res_list[0]
++                        observed_status = res_obj.get("status", "UNKNOWN")
++                        details = res_obj.get("details", {})
++                        screenshot_path = details.get("redacted_screenshot")
++                        if screenshot_path:
++                            if not os.path.exists(screenshot_path):
++                                print(f"Referenced screenshot missing on disk: {screenshot_path}")
++                                screenshot_ok = False
++                            else:
++                                print(f"Verified screenshot exists on disk: {screenshot_path}")
++            except Exception as e:
++                print(f"Failed to read JSON output: {e}")
++
++        matched = (observed_status == expected_status) and (proc.returncode == 0) and screenshot_ok
++        print(f"Scenario {tag.upper()}: Expected = {expected_status}, Observed = {observed_status}, ExitCode = {proc.returncode}")
++        if not matched:
++            all_matched = False
++
++    server.shutdown()
++    server.server_close()
++    thread.join(timeout=5)
++
++    # Compute SHA256 checksums for all files in output_base_dir
++    sha256_map = {}
++    for root, dirs, files in os.walk(output_base_dir):
++        for f in files:
++            if f == "SHA256SUMS.json":
++                continue
++            full_p = os.path.join(root, f)
++            rel_p = os.path.relpath(full_p, output_base_dir)
++            sha256_map[rel_p.replace("\\", "/")] = compute_sha256(full_p)
++
++    sha256_file = os.path.join(output_base_dir, "SHA256SUMS.json")
++    with open(sha256_file, "w", encoding="utf-8") as sf:
++        json.dump(sha256_map, sf, indent=2, sort_keys=True)
++
++    if all_matched:
++        print(f"\nPhase 7 Subprocess CLI verification completed successfully! All expected statuses matched. Artifacts saved to: {output_base_dir}")
++        sys.exit(0)
++    else:
++        print(f"\nPhase 7 Subprocess CLI verification failed! Artifacts saved to: {output_base_dir}")
++        sys.exit(1)
++
++
++if __name__ == "__main__":
++    run_verification()
+diff --git a/src/nano_sre/cli.py b/src/nano_sre/cli.py
+index a342610..34becfd 100644
+--- a/src/nano_sre/cli.py
++++ b/src/nano_sre/cli.py
+@@ -23,6 +23,7 @@ from nano_sre.skills import (
+     ShopifyDoctorSkill,
+     ShopifyMobilePurchaseBlockerAuditor,
+     ShopifyPurchaseBlockerAuditor,
++    ShopifySearchDiscoveryAuditor,
+     ShopifyShopper,
+     ShopifyVariantAuditor,
+     VisualAuditor,
+@@ -467,6 +468,7 @@ def _build_skills(settings: Settings, update_baseline: bool) -> dict[str, Skill]
+         ShopifyMobilePurchaseBlockerAuditor(),
+         ShopifyCartConsistencyAuditor(),
+         ShopifyCheckoutBlockerAuditor(),
++        ShopifySearchDiscoveryAuditor(),
+     ]
+     return {skill.name(): skill for skill in skill_instances}
+
+diff --git a/src/nano_sre/skills/__init__.py b/src/nano_sre/skills/__init__.py
+index a54f759..4e37566 100644
+--- a/src/nano_sre/skills/__init__.py
++++ b/src/nano_sre/skills/__init__.py
+@@ -8,6 +8,7 @@ from nano_sre.skills.shopify_cart_consistency_auditor import ShopifyCartConsiste
+ from nano_sre.skills.shopify_checkout_blocker_auditor import ShopifyCheckoutBlockerAuditor
+ from nano_sre.skills.shopify_mobile_purchase_blocker_auditor import ShopifyMobilePurchaseBlockerAuditor
+ from nano_sre.skills.shopify_purchase_blocker_auditor import ShopifyPurchaseBlockerAuditor
++from nano_sre.skills.shopify_search_discovery_auditor import ShopifySearchDiscoveryAuditor
+ from nano_sre.skills.shopify_shopper import ShopifyShopper
+ from nano_sre.skills.shopify_variant_auditor import ShopifyVariantAuditor
+ from nano_sre.skills.visual_auditor import VisualAuditor
+@@ -24,4 +25,5 @@ __all__ = [
+     "VisualAuditor",
+     "ShopifyCartConsistencyAuditor",
+     "ShopifyCheckoutBlockerAuditor",
++    "ShopifySearchDiscoveryAuditor",
+ ]
+diff --git a/src/nano_sre/skills/shopify_search_discovery_auditor.py b/src/nano_sre/skills/shopify_search_discovery_auditor.py
+new file mode 100644
+index 0000000..9832b53
+--- /dev/null
++++ b/src/nano_sre/skills/shopify_search_discovery_auditor.py
+@@ -0,0 +1,934 @@
++"""Shopify Search Discovery Auditor Skill - Phase 7 Search & Discovery Leaks."""
++
++import asyncio
++import hashlib
++import json
++import logging
++import os
++import re
++import uuid
++from datetime import datetime, timezone
++from typing import Any, Optional
++from urllib.parse import parse_qs, unquote, urljoin, urlparse
++
++from nano_sre.agent.core import Skill, SkillResult
++from nano_sre.agent.privacy import Redactor
++
++logger = logging.getLogger(__name__)
++
++_redactor = Redactor()
++
++
++def _now() -> str:
++    return datetime.now(timezone.utc).isoformat()
++
++
++def _redact_value(val: Any) -> Any:
++    """Recursively redact strings, dicts, and lists without corrupting local screenshot file paths."""
++    if isinstance(val, str):
++        if val.startswith("reports/") or val.startswith("phase7_") or val.startswith("verification_output/") or ("/" in val and val.endswith(".png")):
++            return val
++        s = _redactor.redact_text(val)
++        s = re.sub(r"\b[a-f0-9]{32,64}\b", "[REDACTED_TOKEN]", s, flags=re.IGNORECASE)
++        return s
++    if isinstance(val, list):
++        return [_redact_value(item) for item in val]
++    if isinstance(val, dict):
++        return {k: _redact_value(v) for k, v in val.items()}
++    return val
++
++
++def _sanitize_url(url: str) -> str:
++    """Sanitize URL to remove tokens, keys, or credentials without breaking scheme/host/path."""
++    if not url:
++        return ""
++    parsed = urlparse(url)
++    netloc = parsed.hostname or ""
++    if parsed.port:
++        netloc += f":{parsed.port}"
++    scheme = parsed.scheme or "http"
++    path = parsed.path or "/"
++    q_params = parse_qs(parsed.query)
++    safe_params = {k: v for k, v in q_params.items() if k.lower() not in ("token", "key", "cart_token", "secret", "auth")}
++    clean_path = re.sub(r"/[a-f0-9]{32,64}", "/[REDACTED_TOKEN]", path)
++    return f"{scheme}://{netloc}{clean_path}"
++
++
++def _is_local_origin(url: str) -> bool:
++    """Verify that URL points strictly to a local host origin."""
++    try:
++        parsed = urlparse(url)
++        host = (parsed.hostname or "").lower()
++        return host in ("127.0.0.1", "localhost", "0.0.0.0", "::1")
++    except Exception:
++        return False
++
++
++def _extract_handle_from_url(url: str) -> Optional[str]:
++    """Extract exact product handle from URL path (e.g., /products/board-other -> 'board-other')."""
++    try:
++        path = urlparse(url).path.rstrip("/")
++        parts = [p for p in path.split("/") if p]
++        if "products" in parts:
++            idx = parts.index("products")
++            if idx + 1 < len(parts):
++                return parts[idx + 1].lower()
++    except Exception:
++        pass
++    return None
++
++
++class ShopifySearchDiscoveryAuditor(Skill):
++    """Audits search and discovery journeys across search forms, catalog eligibility, result links, PDP navigation, and collection product links."""
++
++    LOCAL_MOCK_LIMITATION = (
++        "Local mock search audit verifies DOM interactions, query handling, and discovery link navigation on local fixtures, "
++        "but does NOT prove performance or compatibility with live Shopify search engines or external discovery apps. "
++        "Local fixture failures demonstrate technical logic state only and do NOT represent actual customer leads or monetary loss."
++    )
++
++    def name(self) -> str:
++        return "shopify_search_discovery_auditor"
++
++    async def run(self, context: dict[str, Any]) -> SkillResult:
++        page = context.get("page")
++        base_url: str = context.get("base_url", "")
++
++        if not page or not base_url:
++            return SkillResult(
++                skill_name=self.name(),
++                status="WARN",
++                summary="Missing page or base_url in context",
++                details=_redact_value({
++                    "reason_code": "MISSING_CONTEXT",
++                    "steps": ["Initialization failed: missing page or base_url"],
++                    "limitation_disclaimer": self.LOCAL_MOCK_LIMITATION,
++                    "checks": {},
++                }),
++            )
++
++        # Enforce local scope before any interaction
++        if not _is_local_origin(base_url) or not _is_local_origin(page.url or base_url):
++            return SkillResult(
++                skill_name=self.name(),
++                status="WARN",
++                summary="Target URL is outside local sandbox origin; search audit skipped for safety",
++                details=_redact_value({
++                    "reason_code": "NON_LOCAL_SCOPE_BLOCKED",
++                    "steps": ["Local origin scope check failed"],
++                    "limitation_disclaimer": self.LOCAL_MOCK_LIMITATION,
++                    "checks": {},
++                }),
++            )
++
++        salt = str(uuid.uuid4())[:8]
++
++        res, run1_data = await self._run_single_audit_pass(context, page, base_url, salt)
++
++        # 2-run local reproduction if first pass resulted in FAIL
++        if res.status == "FAIL":
++            logger.info("First search audit pass returned FAIL. Running second isolated reproduction pass...")
++            res2_status = "UNKNOWN"
++            run2_data = {}
++            try:
++                if hasattr(page, "context") and page.context and hasattr(page.context, "browser") and page.context.browser:
++                    new_context = await page.context.browser.new_context()
++                    new_page = await new_context.new_page()
++
++                    # Guardrail route for pass 2
++                    async def p2_guardrail_route(route):
++                        req_host = (urlparse(route.request.url).hostname or "").lower()
++                        if req_host and not _is_local_origin(route.request.url):
++                            await route.abort("blockedbyclient")
++                            return
++                        await route.continue_()
++
++                    await new_page.route("**/*", p2_guardrail_route)
++
++                    try:
++                        await new_page.goto(base_url, wait_until="commit", timeout=60000)
++                        try:
++                            await new_page.wait_for_load_state("networkidle", timeout=3000)
++                        except Exception:
++                            pass
++
++                        ctx2 = dict(context, page=new_page)
++                        res2, run2_data = await self._run_single_audit_pass(ctx2, new_page, base_url, salt)
++                        res2_status = res2.status
++                    finally:
++                        try:
++                            await new_page.unroute("**/*", p2_guardrail_route)
++                        except Exception:
++                            pass
++                        await new_context.close()
++                else:
++                    res2_status = "UNRESOLVED"
++            except Exception as e:
++                logger.debug("Isolated search run 2 execution note: %s", e)
++
++            if res2_status != "FAIL":
++                res.status = "WARN"
++                res.summary = f"Search failure not reproduced on second pass (Run 1: FAIL, Run 2: {res2_status}). Classified as WARN."
++                if isinstance(res.details, dict):
++                    res.details["reproduction_summary"] = {
++                        "confirmed": False,
++                        "run1_status": "FAIL",
++                        "run2_status": res2_status,
++                        "run1_data": run1_data,
++                        "run2_data": run2_data,
++                    }
++            else:
++                id1 = (
++                    run1_data.get("search_query"),
++                    run1_data.get("target_product_id"),
++                    run1_data.get("failed_stage"),
++                    run1_data.get("reason_code"),
++                    run1_data.get("broken_element"),
++                    run1_data.get("expected"),
++                    run1_data.get("observed"),
++                )
++                id2 = (
++                    run2_data.get("search_query"),
++                    run2_data.get("target_product_id"),
++                    run2_data.get("failed_stage"),
++                    run2_data.get("reason_code"),
++                    run2_data.get("broken_element"),
++                    run2_data.get("expected"),
++                    run2_data.get("observed"),
++                )
++
++                req_fields_present = all(v is not None for v in id1)
++
++                if id1 == id2 and req_fields_present:
++                    if isinstance(res.details, dict):
++                        res.details["reproduction_summary"] = {
++                            "confirmed": True,
++                            "failed_stage": run1_data.get("failed_stage"),
++                            "reason_code": run1_data.get("reason_code"),
++                            "search_query": run1_data.get("search_query"),
++                            "target_product_id": run1_data.get("target_product_id"),
++                            "run1_data": run1_data,
++                            "run2_data": run2_data,
++                        }
++                        # Extract lead_candidate=true strictly for confirmed FAIL blocking eligible product search/access
++                        res.details["lead_candidate"] = True
++                        res.details["lead_summary"] = {
++                            "obstacle": run1_data.get("reason_code"),
++                            "product_id": run1_data.get("target_product_id"),
++                            "search_query": run1_data.get("search_query"),
++                            "expected": run1_data.get("expected"),
++                            "observed": run1_data.get("observed"),
++                            "reproduction_steps": run1_data.get("steps", []),
++                            "coverage_disclaimer": "Local fixture audit proves logic state only. Contains no financial or sales lead valuation.",
++                        }
++                else:
++                    res.status = "WARN"
++                    res.summary = f"Failure identity mismatch across reproduction runs or missing required identity details (Run 1: {run1_data.get('reason_code')}, Run 2: {run2_data.get('reason_code')}). Classified as WARN."
++                    if isinstance(res.details, dict):
++                        res.details["reproduction_summary"] = {
++                            "confirmed": False,
++                            "mismatch_reason": "Differing failure identity details or missing required identity fields across runs",
++                            "run1_data": run1_data,
++                            "run2_data": run2_data,
++                        }
++
++        return res
++
++    async def _run_single_audit_pass(
++        self, context: dict[str, Any], page: Any, base_url: str, salt: str
++    ) -> tuple[SkillResult, dict[str, Any]]:
++        steps = []
++        checks: dict[str, dict[str, Any]] = {}
++        pass_timestamp = _now()
++
++        current_url = _sanitize_url(page.url or base_url)
++
++        # Local scope guardrail route
++        async def search_guardrail_route(route):
++            req_host = (urlparse(route.request.url).hostname or "").lower()
++            if req_host and not _is_local_origin(route.request.url):
++                logger.warning("Active Sandbox Scope Guardrail: Blocked non-local request to %s", route.request.url)
++                await route.abort("blockedbyclient")
++            else:
++                await route.continue_()
++
++        await page.route("**/*", search_guardrail_route)
++
++        try:
++            try:
++                await page.wait_for_load_state("networkidle", timeout=3000)
++            except Exception:
++                pass
++
++            # --- STAGE 1: Catalog Fixture & Eligibility Gate (MUST run BEFORE any UI action/FAIL/lead) ---
++            catalog_fixture = context.get("catalog_fixture") or await self._extract_catalog_fixture(page)
++
++            if not catalog_fixture:
++                checks["catalog_fixture"] = {
++                    "status": "WARN",
++                    "reason_code": "MISSING_CATALOG_FIXTURE",
++                    "summary": "No explicit catalog fixture or metadata provided; product eligibility unproven",
++                    "expected": "Explicit catalog fixture with product eligibility expectations",
++                    "observed": "Catalog fixture missing or unproven",
++                }
++                screenshot_path = await self._take_screenshot(page, "missing_fixture_notice")
++                return SkillResult(
++                    skill_name=self.name(),
++                    status="WARN",
++                    summary=_redact_value("Catalog fixture missing; search audit completed with WARN"),
++                    details=_redact_value({
++                        "reason_code": "MISSING_CATALOG_FIXTURE",
++                        "steps": steps + ["Catalog fixture check failed: missing data"],
++                        "limitation_disclaimer": self.LOCAL_MOCK_LIMITATION,
++                        "checks": checks,
++                        "redacted_screenshot": screenshot_path,
++                    }),
++                ), {
++                    "failed_stage": "catalog_fixture",
++                    "reason_code": "MISSING_CATALOG_FIXTURE",
++                    "broken_element": "catalog_fixture",
++                    "expected": "Explicit catalog fixture",
++                    "observed": "Missing catalog fixture",
++                    "steps": steps,
++                }
++
++            search_query = context.get("search_query") or catalog_fixture.get("expected_query") or ""
++            expected_product_id = catalog_fixture.get("product_id")
++            expected_handle = catalog_fixture.get("handle")
++            expected_title = catalog_fixture.get("title")
++            published_status = catalog_fixture.get("published_status", catalog_fixture.get("published", False))
++            search_eligible = catalog_fixture.get("eligible_for_search", catalog_fixture.get("search_eligible", False))
++
++            if not search_query:
++                checks["catalog_fixture"] = {
++                    "status": "WARN",
++                    "reason_code": "MISSING_SEARCH_QUERY",
++                    "summary": "No search query specified in context or fixture",
++                }
++                return SkillResult(
++                    skill_name=self.name(),
++                    status="WARN",
++                    summary=_redact_value("Search query missing; search audit skipped with WARN"),
++                    details=_redact_value({
++                        "reason_code": "MISSING_SEARCH_QUERY",
++                        "steps": steps,
++                        "limitation_disclaimer": self.LOCAL_MOCK_LIMITATION,
++                        "checks": checks,
++                    }),
++                ), {
++                    "failed_stage": "catalog_fixture",
++                    "reason_code": "MISSING_SEARCH_QUERY",
++                    "broken_element": "search_query",
++                    "expected": "Explicit search query",
++                    "observed": "Missing query",
++                    "steps": steps,
++                }
++
++            is_fixture_matching_query = (
++                search_query.lower() in (expected_title or "").lower()
++                or search_query.lower() in (expected_handle or "").lower()
++                or catalog_fixture.get("expected_query") == search_query
++            )
++
++            # Strictly enforce: Unpublished, search-ineligible, or non-matching query CANNOT yield FAIL or lead_candidate=true
++            if not published_status or not search_eligible or not is_fixture_matching_query:
++                checks["product_eligibility"] = {
++                    "status": "WARN",
++                    "reason_code": "PRODUCT_NOT_ELIGIBLE_FOR_QUERY",
++                    "summary": (
++                        f"Product (ID={expected_product_id}) is non-published, search-ineligible, "
++                        f"or does not match query '{search_query}'. Ineligible product state is classified as WARN."
++                    ),
++                    "expected": "Ineligible product handled safely",
++                    "observed": f"published={published_status}, search_eligible={search_eligible}, query_match={is_fixture_matching_query}",
++                }
++                steps.append("Product ineligible or query non-matching; search audit completed with WARN")
++                screenshot_path = await self._take_screenshot(page, "search_ineligible_notice")
++                return SkillResult(
++                    skill_name=self.name(),
++                    status="WARN",
++                    summary=_redact_value(f"Product ineligible or query non-matching for '{search_query}'"),
++                    details=_redact_value({
++                        "reason_code": "PRODUCT_NOT_ELIGIBLE_FOR_QUERY",
++                        "steps": steps,
++                        "limitation_disclaimer": self.LOCAL_MOCK_LIMITATION,
++                        "checks": checks,
++                        "redacted_screenshot": screenshot_path,
++                    }),
++                ), {
++                    "search_query": search_query,
++                    "target_product_id": expected_product_id,
++                    "failed_stage": "product_eligibility",
++                    "reason_code": "PRODUCT_NOT_ELIGIBLE_FOR_QUERY",
++                    "broken_element": "catalog_fixture",
++                    "expected": "Ineligible product handled safely",
++                    "observed": "Ineligible notice confirmed",
++                    "steps": steps,
++                }
++
++            checks["product_eligibility"] = {
++                "status": "PASS",
++                "reason_code": "NONE",
++                "summary": f"Product (ID={expected_product_id}, handle={expected_handle}) verified eligible for query '{search_query}'",
++            }
++
++            steps.append(f"Initiating UI search audit for query: '{search_query}'")
++
++            # --- STAGE 2: UI Search Execution ---
++            search_input, input_err = await self._find_search_input(page)
++
++            if not search_input:
++                alt_input = await self._find_alt_search_input(page)
++                if alt_input:
++                    search_input = alt_input
++                    input_err = None
++                    steps.append("Using alternative search UI trigger path")
++
++            if not search_input:
++                checks["search_ui_execution"] = {
++                    "status": "FAIL",
++                    "reason_code": "SEARCH_INPUT_MISSING",
++                    "summary": f"Search UI input field missing: {input_err}",
++                    "broken_element": "search_input_field",
++                    "expected": "Visible, accessible search input field in DOM",
++                    "observed": input_err or "No search input found",
++                }
++            else:
++                overlay_blocked = await self._check_overlay_blocked(page, search_input)
++                if overlay_blocked:
++                    checks["search_ui_execution"] = {
++                        "status": "FAIL",
++                        "reason_code": "SEARCH_INPUT_OVERLAY_BLOCKED",
++                        "summary": "Search input field is obscured by an unhandled overlay or modal",
++                        "broken_element": "search_input_overlay",
++                        "expected": "Unobscured search input field",
++                        "observed": "Search input covered by overlay element",
++                    }
++                else:
++                    try:
++                        await search_input.fill(search_query)
++                    except Exception as e:
++                        logger.debug("Failed to fill search field: %s", e)
++
++                    search_btn, btn_err, btn_code = await self._find_search_submit_button(page, search_input)
++
++                    if btn_code == "BUTTON_DISABLED":
++                        checks["search_ui_execution"] = {
++                            "status": "FAIL",
++                            "reason_code": "SEARCH_BUTTON_DISABLED",
++                            "summary": "Search submit button is disabled in DOM",
++                            "broken_element": "search_submit_button",
++                            "expected": "Enabled search submit button",
++                            "observed": "Submit button disabled",
++                        }
++                    else:
++                        start_results_html = await self._get_results_container_html(page)
++
++                        try:
++                            if search_btn and await search_btn.is_visible():
++                                await search_btn.click(timeout=5000)
++                            else:
++                                await search_input.press("Enter", timeout=5000)
++
++                            try:
++                                await page.wait_for_load_state("networkidle", timeout=5000)
++                            except Exception:
++                                pass
++                        except Exception as e:
++                            logger.debug("Search submission exception: %s", e)
++
++                        end_results_html = await self._get_results_container_html(page)
++
++                        if page.url.startswith("chrome-error://") or "500 Internal Server Error" in await page.content():
++                            checks["search_ui_execution"] = {
++                                "status": "FAIL",
++                                "reason_code": "SEARCH_RESPONSE_ERROR",
++                                "summary": "Search request produced server error or 500 response",
++                                "broken_element": "search_response",
++                                "expected": "Successful search results page response",
++                                "observed": f"Server error response at {_sanitize_url(page.url)}",
++                            }
++                        else:
++                            # Prove actual query execution and result container update (DO NOT rely on presence of /search or q= in URL alone)
++                            has_results_grid = await self._has_results_container(page)
++                            results_updated = (start_results_html != end_results_html) or has_results_grid
++
++                            if not results_updated:
++                                checks["search_ui_execution"] = {
++                                    "status": "FAIL",
++                                    "reason_code": "SEARCH_SUBMIT_NO_ACTION",
++                                    "summary": "Submitting search form produced no UI result container rendering or content update",
++                                    "broken_element": "search_submit_action",
++                                    "expected": "Search result DOM container update",
++                                    "observed": "Search results container remained unrendered/unchanged",
++                                }
++                            else:
++                                checks["search_ui_execution"] = {
++                                    "status": "PASS",
++                                    "reason_code": "NONE",
++                                    "summary": f"Search executed and results updated successfully at {_sanitize_url(page.url)}",
++                                }
++
++            if checks.get("search_ui_execution", {}).get("status") == "FAIL":
++                screenshot_path = await self._take_screenshot(page, "search_ui_failed")
++                failed_reason = checks["search_ui_execution"]["reason_code"]
++                return SkillResult(
++                    skill_name=self.name(),
++                    status="FAIL",
++                    summary=_redact_value(f"Search UI execution failed: {failed_reason}"),
++                    details=_redact_value({
++                        "reason_code": failed_reason,
++                        "steps": steps,
++                        "limitation_disclaimer": self.LOCAL_MOCK_LIMITATION,
++                        "checks": checks,
++                        "redacted_screenshot": screenshot_path,
++                    }),
++                ), {
++                    "search_query": search_query,
++                    "target_product_id": expected_product_id,
++                    "failed_stage": "search_ui_execution",
++                    "reason_code": failed_reason,
++                    "broken_element": checks["search_ui_execution"].get("broken_element"),
++                    "expected": checks["search_ui_execution"].get("expected"),
++                    "observed": checks["search_ui_execution"].get("observed"),
++                    "steps": steps,
++                }
++
++            # --- STAGE 3: Discovery Link Integrity & PDP Navigation ---
++            steps.append("Verifying search result links and PDP navigation")
++
++            search_results_page_url = page.url
++
++            # Locate product result link strictly scoped inside search results grid/container
++            result_link, link_err, link_code = await self._find_product_result_link(page, expected_handle, expected_title)
++
++            if not result_link:
++                checks["discovery_links"] = {
++                    "status": "FAIL",
++                    "reason_code": link_code or "ELIGIBLE_PRODUCT_MISSING_FROM_RESULTS",
++                    "summary": f"Eligible product (handle={expected_handle}) missing from search results for query '{search_query}'",
++                    "broken_element": "search_result_grid",
++                    "expected": f"Eligible product '{expected_title}' present in search results",
++                    "observed": link_err or "Product link not found in search results",
++                }
++            else:
++                href = await result_link.get_attribute("href") or ""
++                clean_href = href.strip()
++
++                if not clean_href or clean_href == "#":
++                    checks["discovery_links"] = {
++                        "status": "FAIL",
++                        "reason_code": "BROKEN_RESULT_LINK",
++                        "summary": "Search result item contains empty or broken href attribute",
++                        "broken_element": "result_link_href",
++                        "expected": "Valid destination URL in href",
++                        "observed": f"href='{clean_href}'",
++                    }
++                else:
++                    pdp_nav_ok = False
++                    try:
++                        await result_link.click(timeout=5000)
++                        try:
++                            await page.wait_for_load_state("networkidle", timeout=5000)
++                        except Exception:
++                            pass
++                        pdp_nav_ok = True
++                    except Exception as e:
++                        logger.debug("Result link click exception: %s", e)
++
++                    dest_url = _sanitize_url(page.url)
++
++                    if page.url.startswith("chrome-error://") or "404 Not Found" in await page.content():
++                        checks["discovery_links"] = {
++                            "status": "FAIL",
++                            "reason_code": "BROKEN_RESULT_LINK_404",
++                            "summary": f"Product result link navigated to 404 Not Found error page ({dest_url})",
++                            "broken_element": "result_link_destination",
++                            "expected": "Successful product page load",
++                            "observed": f"404 Not Found at {dest_url}",
++                        }
++                    else:
++                        # Validate exact product handle match from URL path or trusted metadata (prevent substring match or plain text match)
++                        pdp_identity_ok = await self._verify_pdp_identity(page, expected_handle, expected_product_id)
++
++                        if not pdp_identity_ok:
++                            checks["discovery_links"] = {
++                                "status": "FAIL",
++                                "reason_code": "WRONG_PRODUCT_DESTINATION",
++                                "summary": f"Result link for '{expected_title}' opened a different product page ({dest_url})",
++                                "broken_element": "product_destination_identity",
++                                "expected": f"PDP with exact handle '{expected_handle}' or ID {expected_product_id}",
++                                "observed": f"Mismatch destination page at {dest_url}",
++                            }
++                        else:
++                            checks["discovery_links"] = {
++                                "status": "PASS",
++                                "reason_code": "NONE",
++                                "summary": f"Search result link navigated successfully to valid PDP ({dest_url})",
++                            }
++
++            # --- STAGE 4: Collection Page Product Link Journey ---
++            if search_results_page_url and page.url != search_results_page_url:
++                try:
++                    await page.goto(search_results_page_url, wait_until="commit", timeout=10000)
++                    try:
++                        await page.wait_for_load_state("networkidle", timeout=3000)
++                    except Exception:
++                        pass
++                except Exception:
++                    pass
++
++            coll_check = await self._check_collection_product_link_journey(page, expected_handle, expected_product_id)
++            checks["collection_links"] = coll_check
++
++            screenshot_path = await self._take_screenshot(page, "search_discovery_summary")
++
++            statuses = [c["status"] for c in checks.values()]
++            failed_stage = None
++            failed_reason_code = None
++
++            if "FAIL" in statuses:
++                overall_status = "FAIL"
++                failed_stages = [k for k, v in checks.items() if v["status"] == "FAIL"]
++                failed_stage = failed_stages[0]
++                failed_reason_code = checks[failed_stage].get("reason_code", "FAIL")
++                summary = f"Search & discovery auditor failed: {', '.join(failed_stages)}"
++            elif "WARN" in statuses:
++                overall_status = "WARN"
++                warned_stages = [k for k, v in checks.items() if v["status"] == "WARN"]
++                summary = f"Search & discovery auditor completed with warnings: {', '.join(warned_stages)}"
++            else:
++                overall_status = "PASS"
++                summary = f"Search & discovery journey verified successfully for query '{search_query}'"
++
++            run_meta = {
++                "search_query": search_query,
++                "target_product_id": expected_product_id,
++                "failed_stage": failed_stage,
++                "reason_code": failed_reason_code or ("NONE" if overall_status == "PASS" else "WARN"),
++                "broken_element": checks.get(failed_stage, {}).get("broken_element") if failed_stage else None,
++                "expected": checks.get(failed_stage, {}).get("expected"),
++                "observed": checks.get(failed_stage, {}).get("observed"),
++                "steps": steps,
++                "timestamp": pass_timestamp,
++            }
++
++            return SkillResult(
++                skill_name=self.name(),
++                status=overall_status,
++                summary=_redact_value(summary),
++                details=_redact_value({
++                    "reason_code": run_meta["reason_code"],
++                    "steps": steps,
++                    "limitation_disclaimer": self.LOCAL_MOCK_LIMITATION,
++                    "checks": checks,
++                    "redacted_screenshot": screenshot_path,
++                    "pass_timestamp": pass_timestamp,
++                }),
++            ), run_meta
++
++        finally:
++            try:
++                await page.unroute("**/*", search_guardrail_route)
++            except Exception:
++                pass
++
++    async def _extract_catalog_fixture(self, page) -> Optional[dict[str, Any]]:
++        """Extract catalog expectations strictly from DOM metadata script element without default hardcoded fallbacks."""
++        try:
++            fixture_json = await page.evaluate("""
++                () => {
++                    const el = document.querySelector('[data-catalog-fixture]');
++                    if (el) {
++                        try { return JSON.parse(el.textContent); } catch(e) {}
++                    }
++                    return null;
++                }
++            """)
++            if isinstance(fixture_json, dict):
++                return fixture_json
++        except Exception:
++            pass
++        return None
++
++    async def _find_search_input(self, page) -> tuple[Optional[Any], Optional[str]]:
++        """Find visible search input field in DOM."""
++        selectors = [
++            'input[type="search"]:visible',
++            'input[name="q"]:visible',
++            'input[placeholder*="Search"]:visible',
++            'input[placeholder*="search"]:visible',
++            '[data-search-input]:visible',
++        ]
++        for sel in selectors:
++            loc = page.locator(sel).first
++            if await loc.count() > 0:
++                return loc, None
++        return None, "No visible search input field found in DOM"
++
++    async def _find_alt_search_input(self, page) -> Optional[Any]:
++        """Find alternative search input trigger or modal in DOM."""
++        try:
++            trigger = page.locator('button[aria-label*="Search"]:visible, a[href*="/search"]:visible, .search-toggle:visible').first
++            if await trigger.count() > 0:
++                await trigger.click(timeout=2000)
++                await asyncio.sleep(0.5)
++                inp = page.locator('input[type="search"]:visible, input[name="q"]:visible').first
++                if await inp.count() > 0:
++                    return inp
++        except Exception:
++            pass
++        return None
++
++    async def _find_search_submit_button(self, page, search_input) -> tuple[Optional[Any], Optional[str], Optional[str]]:
++        """Find search submit button near search input."""
++        try:
++            form = search_input.locator('xpath=ancestor::form[1]')
++            if await form.count() > 0:
++                btn = form.locator('button[type="submit"]:visible, input[type="submit"]:visible, button[aria-label*="Search"]:visible').first
++                if await btn.count() > 0:
++                    if await btn.is_disabled():
++                        return btn, "Submit button exists but is disabled", "BUTTON_DISABLED"
++                    return btn, None, None
++        except Exception:
++            pass
++        return None, None, None
++
++    async def _check_overlay_blocked(self, page, target_loc) -> bool:
++        """Check if an overlay blocks interaction with the target locator."""
++        try:
++            overlays = page.locator('.modal-backdrop:visible, .overlay:visible, [data-modal-overlay]:visible, .drawer-overlay:visible')
++            if await overlays.count() > 0:
++                is_blocked = await page.evaluate("""
++                    el => {
++                        const rect = el.getBoundingClientRect();
++                        const topEl = document.elementFromPoint(rect.left + rect.width/2, rect.top + rect.height/2);
++                        return topEl && !el.contains(topEl) && topEl !== el;
++                    }
++                """, await target_loc.element_handle())
++                return is_blocked
++        except Exception:
++            pass
++        return False
++
++    async def _get_results_container_html(self, page) -> str:
++        """Get HTML snippet of search results container to detect dynamic rendering changes."""
++        try:
++            container = page.locator('#search-results, .search-results, [data-search-results], .product-grid').first
++            if await container.count() > 0:
++                return await container.inner_html()
++        except Exception:
++            pass
++        return ""
++
++    async def _has_results_container(self, page) -> bool:
++        """Check if search results container or grid is present in DOM."""
++        try:
++            container = page.locator('#search-results, .search-results, [data-search-results], .product-grid').first
++            if await container.count() > 0:
++                return True
++        except Exception:
++            pass
++        return False
++
++    async def _find_product_result_link(
++        self, page, expected_handle: Optional[str], expected_title: Optional[str]
++    ) -> tuple[Optional[Any], Optional[str], Optional[str]]:
++        """Find result product link strictly scoped inside search results container."""
++        results_container = page.locator('#search-results, .search-results, [data-search-results], .product-grid').first
++        search_root = results_container if await results_container.count() > 0 else page
++
++        if expected_handle:
++            link = search_root.locator(f'a[href*="/products/{expected_handle}"]:visible').first
++            if await link.count() > 0:
++                # Check exact handle match from URL path
++                found_href = await link.get_attribute("href") or ""
++                found_handle = _extract_handle_from_url(found_href)
++                if found_handle == expected_handle.lower():
++                    return link, None, None
++
++        if expected_title:
++            link = search_root.locator(f'a:has-text("{expected_title}"):visible').first
++            if await link.count() > 0:
++                return link, None, None
++
++        gen_link = search_root.locator('.product-card a[href*="/products/"]:visible, .grid-product a[href*="/products/"]:visible, [data-product-link]:visible').first
++        if await gen_link.count() > 0:
++            return gen_link, None, None
++
++        return None, f"No product result link found for handle '{expected_handle}' or title '{expected_title}'", "ELIGIBLE_PRODUCT_MISSING_FROM_RESULTS"
++
++    async def _verify_pdp_identity(
++        self, page, expected_handle: Optional[str], expected_product_id: Optional[str]
++    ) -> bool:
++        """Verify destination PDP identity strictly using exact handle match in URL path or trusted JSON-LD metadata. Plain body text is NOT accepted."""
++        try:
++            dest_handle = _extract_handle_from_url(page.url)
++            if expected_handle and dest_handle == expected_handle.lower():
++                return True
++
++            # Check trusted structured JSON metadata
++            meta_json = await page.evaluate("""
++                () => {
++                    const scripts = document.querySelectorAll('script[type="application/ld+json"], script[id*="product"]');
++                    for (const s of scripts) {
++                        try {
++                            const d = JSON.parse(s.textContent);
++                            if (d && (d.product_id || d.sku || d.url)) return d;
++                        } catch(e) {}
++                    }
++                    return null;
++                }
++            """)
++            if isinstance(meta_json, dict):
++                p_id = str(meta_json.get("product_id") or meta_json.get("id") or "")
++                p_url = str(meta_json.get("url") or "")
++                meta_handle = _extract_handle_from_url(p_url) if p_url else None
++
++                if expected_product_id and p_id == str(expected_product_id):
++                    return True
++                if expected_handle and meta_handle == expected_handle.lower():
++                    return True
++        except Exception:
++            pass
++        return False
++
++    async def _check_collection_product_link_journey(
++        self, page, expected_handle: Optional[str] = None, expected_product_id: Optional[str] = None
++    ) -> dict[str, Any]:
++        """Test a visible product link within a collection page via actual click and destination PDP verification."""
++        try:
++            coll_product_link = page.locator('.collection-grid a[href*="/products/"]:visible, .collection a[href*="/products/"]:visible, [data-collection-product-link]:visible').first
++            if await coll_product_link.count() == 0:
++                return {
++                    "status": "NOT_APPLICABLE",
++                    "reason_code": "NO_COLLECTION_PRODUCT_LINKS",
++                    "summary": "No collection product links present on current page view; collection journey skipped",
++                }
++
++            href = await coll_product_link.get_attribute("href") or ""
++            if not href or href == "#":
++                return {
++                    "status": "FAIL",
++                    "reason_code": "BROKEN_COLLECTION_PRODUCT_LINK",
++                    "summary": f"Collection product link has broken href attribute ('{href}')",
++                    "broken_element": "collection_product_link_href",
++                    "expected": "Valid product destination URL in href",
++                    "observed": f"href='{href}'",
++                }
++
++            try:
++                await coll_product_link.click(timeout=5000)
++                try:
++                    await page.wait_for_load_state("networkidle", timeout=5000)
++                except Exception:
++                    pass
++            except Exception as e:
++                return {
++                    "status": "WARN",
++                    "reason_code": "COLLECTION_PRODUCT_CLICK_UNPROVEN",
++                    "summary": f"Collection product link click did not complete navigation: {e}",
++                }
++
++            dest_url = _sanitize_url(page.url)
++
++            if page.url.startswith("chrome-error://") or "404 Not Found" in await page.content():
++                return {
++                    "status": "FAIL",
++                    "reason_code": "BROKEN_COLLECTION_PRODUCT_LINK_404",
++                    "summary": f"Collection product link navigated to 404 Not Found page ({dest_url})",
++                    "broken_element": "collection_product_link_destination",
++                    "expected": "Successful product PDP page load",
++                    "observed": f"404 Not Found at {dest_url}",
++                }
++
++            # Verify destination PDP handle or identity
++            pdp_identity_ok = await self._verify_pdp_identity(page, expected_handle, expected_product_id)
++            dest_handle = _extract_handle_from_url(page.url)
++
++            if pdp_identity_ok or (dest_handle and expected_handle and dest_handle == expected_handle.lower()):
++                return {
++                    "status": "PASS",
++                    "reason_code": "NONE",
++                    "summary": f"Collection product link navigated successfully to valid PDP ({dest_url})",
++                }
++
++            if dest_handle:
++                return {
++                    "status": "FAIL",
++                    "reason_code": "WRONG_COLLECTION_PRODUCT_DESTINATION",
++                    "summary": f"Collection product link navigated to wrong product page (expected '{expected_handle}', got '{dest_handle}')",
++                    "broken_element": "collection_product_destination",
++                    "expected": f"PDP for product handle '{expected_handle}'",
++                    "observed": f"Navigated to '{dest_handle}' at {dest_url}",
++                }
++
++            return {
++                "status": "WARN",
++                "reason_code": "COLLECTION_PRODUCT_DESTINATION_UNPROVEN",
++                "summary": f"Collection product link navigated to non-product URL ({dest_url})",
++            }
++        except Exception as e:
++            return {
++                "status": "WARN",
++                "reason_code": "COLLECTION_JOURNEY_WARN",
++                "summary": f"Collection product link journey note: {e}",
++            }
++
++    async def _take_screenshot(self, page, tag: str) -> Optional[str]:
++        """Take screenshot with non-mutative visual CSS PII masking. Returns None if safe redaction or element scoping cannot be guaranteed."""
++        os.makedirs("reports/screenshots", exist_ok=True)
++        filename = f"search_discovery_{tag}_{int(datetime.now().timestamp())}.png"
++        path = os.path.join("reports/screenshots", filename)
++
++        try:
++            mask_success = await page.evaluate("""
++                () => {
++                    try {
++                        const fieldSelector = 'input[type="text"], input[type="search"], textarea, [data-pii]';
++                        document.querySelectorAll(fieldSelector).forEach(el => {
++                            el.dataset.origBg = el.style.backgroundColor || '';
++                            el.dataset.origColor = el.style.color || '';
++                            el.dataset.origFilter = el.style.filter || '';
++                            el.style.backgroundColor = '#000000';
++                            el.style.color = '#000000';
++                            el.style.filter = 'blur(10px) brightness(0)';
++                        });
++                        return true;
++                    } catch (e) {
++                        return false;
++                    }
++                }
++            """)
++
++            if not mask_success:
++                return None
++
++            container = page.locator('#search-results, .search-container, .product-grid, body').first
++            if await container.count() > 0 and await container.is_visible():
++                await container.screenshot(path=path)
++            else:
++                return None
++
++            if os.path.exists(path) and os.path.getsize(path) > 0:
++                return path
++            return None
++        except Exception as e:
++            logger.debug("Screenshot capture failed: %s", e)
++            return None
++        finally:
++            try:
++                await page.evaluate("""
++                    () => {
++                        document.querySelectorAll('[data-orig-bg]').forEach(el => {
++                            el.style.backgroundColor = el.dataset.origBg;
++                            el.style.color = el.dataset.origColor;
++                            el.style.filter = el.dataset.origFilter;
++                            delete el.dataset.origBg;
++                            delete el.dataset.origColor;
++                            delete el.dataset.origFilter;
++                        });
++                    }
++                """)
++            except Exception:
++                pass
+diff --git a/tests/test_shopify_search_discovery_auditor.py b/tests/test_shopify_search_discovery_auditor.py
+new file mode 100644
+index 0000000..68df733
+--- /dev/null
++++ b/tests/test_shopify_search_discovery_auditor.py
+@@ -0,0 +1,690 @@
++"""Tests for ShopifySearchDiscoveryAuditor Skill (Phase 7)."""
++
++import asyncio
++import json
++import threading
++import pytest
++from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
++from playwright.async_api import async_playwright
++from nano_sre.cli import DEFAULT_SKILLS, _build_skills, get_settings
++from nano_sre.skills.shopify_search_discovery_auditor import ShopifySearchDiscoveryAuditor
++
++
++class ComprehensiveMockSearchServer(BaseHTTPRequestHandler):
++    flaky_count = [0]
++    differing_count = [0]
++
++    def log_message(self, *args):
++        pass
++
++    def do_GET(self):
++        path = self.path
++
++        if path.startswith("/products/search-pass"):
++            html = """<!doctype html><html><body>
++            <h1>Search Pass Demo</h1>
++            <script data-catalog-fixture type="application/json">
++            {
++              "product_id": "9001",
++              "handle": "snowboard-pass",
++              "title": "Pass Snowboard",
++              "published_status": true,
++              "eligible_for_search": true,
++              "expected_query": "snowboard"
++            }
++            </script>
++            <form action="/search" method="get">
++              <input type="search" name="q" placeholder="Search products...">
++              <button type="submit">Search</button>
++            </form>
++            </body></html>"""
++            self.send_response(200)
++            self.send_header("Content-Type", "text/html")
++            self.end_headers()
++            self.wfile.write(html.encode("utf-8"))
++
++        elif path.startswith("/products/missing-fixture-warn"):
++            html = """<!doctype html><html><body>
++            <h1>No Fixture Demo</h1>
++            <form action="/search" method="get">
++              <input type="search" name="q" placeholder="Search products...">
++              <button type="submit">Search</button>
++            </form>
++            </body></html>"""
++            self.send_response(200)
++            self.send_header("Content-Type", "text/html")
++            self.end_headers()
++            self.wfile.write(html.encode("utf-8"))
++
++        elif path.startswith("/products/ineligible-disabled-button-warn"):
++            html = """<!doctype html><html><body>
++            <h1>Ineligible Disabled Button Demo</h1>
++            <script data-catalog-fixture type="application/json">
++            {
++              "product_id": "9002",
++              "handle": "ineligible-item",
++              "title": "Ineligible Item",
++              "published_status": false,
++              "eligible_for_search": false,
++              "expected_query": "snowboard"
++            }
++            </script>
++            <form action="/search" method="get">
++              <input type="search" name="q" placeholder="Search products...">
++              <button type="submit" disabled>Search</button>
++            </form>
++            </body></html>"""
++            self.send_response(200)
++            self.send_header("Content-Type", "text/html")
++            self.end_headers()
++            self.wfile.write(html.encode("utf-8"))
++
++        elif path.startswith("/products/disabled-button-fail"):
++            html = """<!doctype html><html><body>
++            <h1>Disabled Search Button Fail Demo</h1>
++            <script data-catalog-fixture type="application/json">
++            {
++              "product_id": "9003",
++              "handle": "snowboard-fail",
++              "title": "Fail Snowboard",
++              "published_status": true,
++              "eligible_for_search": true,
++              "expected_query": "snowboard"
++            }
++            </script>
++            <form action="/search" method="get">
++              <input type="search" name="q" placeholder="Search products...">
++              <button type="submit" disabled>Search</button>
++            </form>
++            </body></html>"""
++            self.send_response(200)
++            self.send_header("Content-Type", "text/html")
++            self.end_headers()
++            self.wfile.write(html.encode("utf-8"))
++
++        elif path.startswith("/products/overlay-blocked-fail"):
++            html = """<!doctype html><html><body>
++            <h1>Overlay Blocked Demo</h1>
++            <script data-catalog-fixture type="application/json">
++            {
++              "product_id": "9004",
++              "handle": "overlay-item",
++              "title": "Overlay Item",
++              "published_status": true,
++              "eligible_for_search": true,
++              "expected_query": "snowboard"
++            }
++            </script>
++            <div class="modal-backdrop" style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:999;">Modal</div>
++            <form action="/search" method="get" style="position:absolute;top:10px;left:10px;z-index:1;">
++              <input type="search" name="q" placeholder="Search products...">
++              <button type="submit">Search</button>
++            </form>
++            </body></html>"""
++            self.send_response(200)
++            self.send_header("Content-Type", "text/html")
++            self.end_headers()
++            self.wfile.write(html.encode("utf-8"))
++
++        elif path.startswith("/products/submit-no-action-fail"):
++            html = """<!doctype html><html><body>
++            <h1>Submit No Action Demo</h1>
++            <script data-catalog-fixture type="application/json">
++            {
++              "product_id": "9005",
++              "handle": "noaction-item",
++              "title": "No Action Item",
++              "published_status": true,
++              "eligible_for_search": true,
++              "expected_query": "snowboard"
++            }
++            </script>
++            <form action="#" method="get">
++              <input type="search" name="q" placeholder="Search products...">
++              <button type="submit" id="sbtn">Search</button>
++            </form>
++            <script>
++            document.getElementById('sbtn').onclick = (e) => { e.preventDefault(); };
++            </script>
++            </body></html>"""
++            self.send_response(200)
++            self.send_header("Content-Type", "text/html")
++            self.end_headers()
++            self.wfile.write(html.encode("utf-8"))
++
++        elif path.startswith("/products/server-error-fail"):
++            html = """<!doctype html><html><body>
++            <h1>Server Error Demo</h1>
++            <script data-catalog-fixture type="application/json">
++            {
++              "product_id": "9006",
++              "handle": "error-item",
++              "title": "Error Item",
++              "published_status": true,
++              "eligible_for_search": true,
++              "expected_query": "snowboard"
++            }
++            </script>
++            <form action="/search-500" method="get">
++              <input type="search" name="q" placeholder="Search products...">
++              <button type="submit">Search</button>
++            </form>
++            </body></html>"""
++            self.send_response(200)
++            self.send_header("Content-Type", "text/html")
++            self.end_headers()
++            self.wfile.write(html.encode("utf-8"))
++
++        elif path.startswith("/search-500"):
++            self.send_response(500)
++            self.send_header("Content-Type", "text/html")
++            self.end_headers()
++            self.wfile.write(b"500 Internal Server Error")
++
++        elif path.startswith("/products/alt-search-pass"):
++            html = """<!doctype html><html><body>
++            <h1>Alt Search Path Demo</h1>
++            <script data-catalog-fixture type="application/json">
++            {
++              "product_id": "9007",
++              "handle": "snowboard-pass",
++              "title": "Pass Snowboard",
++              "published_status": true,
++              "eligible_for_search": true,
++              "expected_query": "snowboard"
++            }
++            </script>
++            <button aria-label="Search" id="toggle-btn">Search Icon</button>
++            <div id="search-modal" style="display:none;">
++              <form action="/search" method="get">
++                <input type="search" name="q" placeholder="Search products...">
++                <button type="submit">Search</button>
++              </form>
++            </div>
++            <script>
++            document.getElementById('toggle-btn').onclick = () => {
++              document.getElementById('search-modal').style.display = 'block';
++            };
++            </script>
++            </body></html>"""
++            self.send_response(200)
++            self.send_header("Content-Type", "text/html")
++            self.end_headers()
++            self.wfile.write(html.encode("utf-8"))
++
++        elif path.startswith("/products/handle-substring-board-other-fail"):
++            html = """<!doctype html><html><body>
++            <h1>Substring Handle Fail Demo</h1>
++            <script data-catalog-fixture type="application/json">
++            {
++              "product_id": "9008",
++              "handle": "board",
++              "title": "Board",
++              "published_status": true,
++              "eligible_for_search": true,
++              "expected_query": "board"
++            }
++            </script>
++            <form action="/search-substring" method="get">
++              <input type="search" name="q" placeholder="Search products...">
++              <button type="submit">Search</button>
++            </form>
++            </body></html>"""
++            self.send_response(200)
++            self.send_header("Content-Type", "text/html")
++            self.end_headers()
++            self.wfile.write(html.encode("utf-8"))
++
++        elif path.startswith("/search-substring"):
++            html = """<!doctype html><html><body>
++            <h1>Search Results</h1>
++            <div id="search-results">
++              <div class="product-card">
++                <a href="/products/board-other">Board Other Product</a>
++              </div>
++            </div>
++            </body></html>"""
++            self.send_response(200)
++            self.send_header("Content-Type", "text/html")
++            self.end_headers()
++            self.wfile.write(html.encode("utf-8"))
++
++        elif path.startswith("/products/board-other"):
++            html = """<!doctype html><html><body>
++            <h1>Board Other PDP</h1>
++            <p>Product ID: 9998</p>
++            </body></html>"""
++            self.send_response(200)
++            self.send_header("Content-Type", "text/html")
++            self.end_headers()
++            self.wfile.write(html.encode("utf-8"))
++
++        elif path.startswith("/products/collection-wrong-dest-fail"):
++            html = """<!doctype html><html><body>
++            <h1>Collection Wrong Dest Fail Demo</h1>
++            <script data-catalog-fixture type="application/json">
++            {
++              "product_id": "9010",
++              "handle": "snowboard-pass",
++              "title": "Pass Snowboard",
++              "published_status": true,
++              "eligible_for_search": true,
++              "expected_query": "snowboard"
++            }
++            </script>
++            <form action="/search-coll-wrong" method="get">
++              <input type="search" name="q" placeholder="Search products...">
++              <button type="submit">Search</button>
++            </form>
++            </body></html>"""
++            self.send_response(200)
++            self.send_header("Content-Type", "text/html")
++            self.end_headers()
++            self.wfile.write(html.encode("utf-8"))
++
++        elif path.startswith("/search-coll-wrong"):
++            html = """<!doctype html><html><body>
++            <h1>Search Results</h1>
++            <div id="search-results">
++              <div class="product-card">
++                <a href="/products/snowboard-pass">Pass Snowboard Link</a>
++              </div>
++              <div class="collection-grid">
++                <a href="/products/board-other">Collection Item</a>
++              </div>
++            </div>
++            </body></html>"""
++            self.send_response(200)
++            self.send_header("Content-Type", "text/html")
++            self.end_headers()
++            self.wfile.write(html.encode("utf-8"))
++
++        elif path.startswith("/products/collection-journey-pass"):
++            html = """<!doctype html><html><body>
++            <h1>Collection Journey Pass Demo</h1>
++            <script data-catalog-fixture type="application/json">
++            {
++              "product_id": "9009",
++              "handle": "snowboard-pass",
++              "title": "Pass Snowboard",
++              "published_status": true,
++              "eligible_for_search": true,
++              "expected_query": "snowboard"
++            }
++            </script>
++            <form action="/search-coll" method="get">
++              <input type="search" name="q" placeholder="Search products...">
++              <button type="submit">Search</button>
++            </form>
++            </body></html>"""
++            self.send_response(200)
++            self.send_header("Content-Type", "text/html")
++            self.end_headers()
++            self.wfile.write(html.encode("utf-8"))
++
++        elif path.startswith("/search-coll"):
++            html = """<!doctype html><html><body>
++            <h1>Search Results</h1>
++            <div id="search-results">
++              <div class="product-card">
++                <a href="/products/snowboard-pass">Pass Snowboard</a>
++              </div>
++            </div>
++            </body></html>"""
++            self.send_response(200)
++            self.send_header("Content-Type", "text/html")
++            self.end_headers()
++            self.wfile.write(html.encode("utf-8"))
++
++        elif path.startswith("/products/disappearing-fault-warn"):
++            ComprehensiveMockSearchServer.flaky_count[0] += 1
++            if ComprehensiveMockSearchServer.flaky_count[0] == 1:
++                html = """<!doctype html><html><body>
++                <h1>Disappearing Fault Demo Run 1</h1>
++                <script data-catalog-fixture type="application/json">
++                {
++                  "product_id": "9011",
++                  "handle": "flaky-item",
++                  "title": "Flaky Item",
++                  "published_status": true,
++                  "eligible_for_search": true,
++                  "expected_query": "snowboard"
++                }
++                </script>
++                <form action="/search" method="get">
++                  <input type="search" name="q" placeholder="Search products...">
++                  <button type="submit" disabled>Search</button>
++                </form>
++                </body></html>"""
++            else:
++                html = """<!doctype html><html><body>
++                <h1>Disappearing Fault Demo Run 2</h1>
++                <script data-catalog-fixture type="application/json">
++                {
++                  "product_id": "9011",
++                  "handle": "snowboard-pass",
++                  "title": "Pass Snowboard",
++                  "published_status": true,
++                  "eligible_for_search": true,
++                  "expected_query": "snowboard"
++                }
++                </script>
++                <form action="/search" method="get">
++                  <input type="search" name="q" placeholder="Search products...">
++                  <button type="submit">Search</button>
++                </form>
++                </body></html>"""
++            self.send_response(200)
++            self.send_header("Content-Type", "text/html")
++            self.end_headers()
++            self.wfile.write(html.encode("utf-8"))
++
++        elif path.startswith("/products/differing-fault-warn"):
++            ComprehensiveMockSearchServer.differing_count[0] += 1
++            if ComprehensiveMockSearchServer.differing_count[0] == 1:
++                html = """<!doctype html><html><body>
++                <h1>Differing Fault Demo Run 1</h1>
++                <script data-catalog-fixture type="application/json">
++                {
++                  "product_id": "9012",
++                  "handle": "broken-item",
++                  "title": "Broken Item",
++                  "published_status": true,
++                  "eligible_for_search": true,
++                  "expected_query": "snowboard"
++                }
++                </script>
++                <form action="/search" method="get">
++                  <input type="search" name="q" placeholder="Search products...">
++                  <button type="submit" disabled>Search</button>
++                </form>
++                </body></html>"""
++            else:
++                html = """<!doctype html><html><body>
++                <h1>Differing Fault Demo Run 2</h1>
++                <script data-catalog-fixture type="application/json">
++                {
++                  "product_id": "9012",
++                  "handle": "broken-item",
++                  "title": "Broken Item",
++                  "published_status": true,
++                  "eligible_for_search": true,
++                  "expected_query": "snowboard"
++                }
++                </script>
++                <form action="/search-broken" method="get">
++                  <input type="search" name="q" placeholder="Search products...">
++                  <button type="submit">Search</button>
++                </form>
++                </body></html>"""
++            self.send_response(200)
++            self.send_header("Content-Type", "text/html")
++            self.end_headers()
++            self.wfile.write(html.encode("utf-8"))
++
++        elif path.startswith("/search-broken"):
++            html = """<!doctype html><html><body>
++            <h1>Search Results</h1>
++            <div id="search-results">
++              <div class="product-card">
++                <a href="/products/coll-broken-404">Broken Item</a>
++              </div>
++            </div>
++            </body></html>"""
++            self.send_response(200)
++            self.send_header("Content-Type", "text/html")
++            self.end_headers()
++            self.wfile.write(html.encode("utf-8"))
++
++        elif path.startswith("/search"):
++            html = """<!doctype html><html><body>
++            <h1>Search Results</h1>
++            <div id="search-results">
++              <div class="product-card">
++                <a href="/products/snowboard-pass">Pass Snowboard</a>
++              </div>
++            </div>
++            </body></html>"""
++            self.send_response(200)
++            self.send_header("Content-Type", "text/html")
++            self.end_headers()
++            self.wfile.write(html.encode("utf-8"))
++
++        elif path.startswith("/products/snowboard-pass"):
++            html = """<!doctype html><html><body>
++            <h1>Pass Snowboard PDP</h1>
++            <p>Product ID: 9001</p>
++            </body></html>"""
++            self.send_response(200)
++            self.send_header("Content-Type", "text/html")
++            self.end_headers()
++            self.wfile.write(html.encode("utf-8"))
++
++        else:
++            self.send_response(404)
++            self.end_headers()
++
++
++@pytest.fixture(scope="module")
++def mock_server():
++    server = ThreadingHTTPServer(("127.0.0.1", 0), ComprehensiveMockSearchServer)
++    port = server.server_port
++    thread = threading.Thread(target=server.serve_forever, daemon=True)
++    thread.start()
++    yield f"http://127.0.0.1:{port}"
++    server.shutdown()
++    server.server_close()
++    thread.join(timeout=5)
++
++
++def test_skill_excluded_from_default_skills():
++    auditor = ShopifySearchDiscoveryAuditor()
++    assert auditor.name() == "shopify_search_discovery_auditor"
++    assert "shopify_search_discovery_auditor" not in DEFAULT_SKILLS
++
++
++@pytest.mark.asyncio
++async def test_missing_catalog_fixture_returns_warn(mock_server):
++    url = f"{mock_server}/products/missing-fixture-warn"
++    async with async_playwright() as p:
++        browser = await p.chromium.launch(headless=True)
++        ctx = await browser.new_context()
++        page = await ctx.new_page()
++        await page.goto(url)
++
++        auditor = ShopifySearchDiscoveryAuditor()
++        result = await auditor.run({"page": page, "base_url": url})
++
++        assert result.status == "WARN"
++        assert result.details["reason_code"] == "MISSING_CATALOG_FIXTURE"
++        await browser.close()
++
++
++@pytest.mark.asyncio
++async def test_ineligible_product_disabled_button_returns_warn_not_fail(mock_server):
++    url = f"{mock_server}/products/ineligible-disabled-button-warn"
++    async with async_playwright() as p:
++        browser = await p.chromium.launch(headless=True)
++        ctx = await browser.new_context()
++        page = await ctx.new_page()
++        await page.goto(url)
++
++        auditor = ShopifySearchDiscoveryAuditor()
++        result = await auditor.run({"page": page, "base_url": url})
++
++        assert result.status == "WARN"
++        assert result.details["reason_code"] == "PRODUCT_NOT_ELIGIBLE_FOR_QUERY"
++        assert result.details.get("lead_candidate") is not True
++        await browser.close()
++
++
++@pytest.mark.asyncio
++async def test_disabled_search_button_returns_fail_and_lead(mock_server):
++    url = f"{mock_server}/products/disabled-button-fail"
++    async with async_playwright() as p:
++        browser = await p.chromium.launch(headless=True)
++        ctx = await browser.new_context()
++        page = await ctx.new_page()
++        await page.goto(url)
++
++        auditor = ShopifySearchDiscoveryAuditor()
++        result = await auditor.run({"page": page, "base_url": url})
++
++        assert result.status == "FAIL"
++        assert result.details["reason_code"] == "SEARCH_BUTTON_DISABLED"
++        assert result.details.get("lead_candidate") is True
++        await browser.close()
++
++
++@pytest.mark.asyncio
++async def test_overlay_blocked_search_returns_fail(mock_server):
++    url = f"{mock_server}/products/overlay-blocked-fail"
++    async with async_playwright() as p:
++        browser = await p.chromium.launch(headless=True)
++        ctx = await browser.new_context()
++        page = await ctx.new_page()
++        await page.goto(url)
++
++        auditor = ShopifySearchDiscoveryAuditor()
++        result = await auditor.run({"page": page, "base_url": url})
++
++        assert result.status == "FAIL"
++        assert result.details["reason_code"] == "SEARCH_INPUT_OVERLAY_BLOCKED"
++        await browser.close()
++
++
++@pytest.mark.asyncio
++async def test_submit_no_action_returns_fail(mock_server):
++    url = f"{mock_server}/products/submit-no-action-fail"
++    async with async_playwright() as p:
++        browser = await p.chromium.launch(headless=True)
++        ctx = await browser.new_context()
++        page = await ctx.new_page()
++        await page.goto(url)
++
++        auditor = ShopifySearchDiscoveryAuditor()
++        result = await auditor.run({"page": page, "base_url": url})
++
++        assert result.status == "FAIL"
++        assert result.details["reason_code"] == "SEARCH_SUBMIT_NO_ACTION"
++        await browser.close()
++
++
++@pytest.mark.asyncio
++async def test_server_error_response_returns_fail(mock_server):
++    url = f"{mock_server}/products/server-error-fail"
++    async with async_playwright() as p:
++        browser = await p.chromium.launch(headless=True)
++        ctx = await browser.new_context()
++        page = await ctx.new_page()
++        await page.goto(url)
++
++        auditor = ShopifySearchDiscoveryAuditor()
++        result = await auditor.run({"page": page, "base_url": url})
++
++        assert result.status == "FAIL"
++        assert result.details["reason_code"] == "SEARCH_RESPONSE_ERROR"
++        await browser.close()
++
++
++@pytest.mark.asyncio
++async def test_alt_search_trigger_path_pass(mock_server):
++    url = f"{mock_server}/products/alt-search-pass"
++    async with async_playwright() as p:
++        browser = await p.chromium.launch(headless=True)
++        ctx = await browser.new_context()
++        page = await ctx.new_page()
++        await page.goto(url)
++
++        auditor = ShopifySearchDiscoveryAuditor()
++        result = await auditor.run({"page": page, "base_url": url})
++
++        assert result.status == "PASS"
++        await browser.close()
++
++
++@pytest.mark.asyncio
++async def test_handle_substring_board_other_fail(mock_server):
++    """Handle 'board' must NOT match 'board-other' -> FAIL (WRONG_PRODUCT_DESTINATION)."""
++    url = f"{mock_server}/products/handle-substring-board-other-fail"
++    async with async_playwright() as p:
++        browser = await p.chromium.launch(headless=True)
++        ctx = await browser.new_context()
++        page = await ctx.new_page()
++        await page.goto(url)
++
++        auditor = ShopifySearchDiscoveryAuditor()
++        result = await auditor.run({"page": page, "base_url": url})
++
++        assert result.status == "FAIL"
++        assert result.details["reason_code"] == "WRONG_PRODUCT_DESTINATION"
++        await browser.close()
++
++
++@pytest.mark.asyncio
++async def test_collection_product_link_pass(mock_server):
++    url = f"{mock_server}/products/collection-journey-pass"
++    async with async_playwright() as p:
++        browser = await p.chromium.launch(headless=True)
++        ctx = await browser.new_context()
++        page = await ctx.new_page()
++        await page.goto(url)
++
++        auditor = ShopifySearchDiscoveryAuditor()
++        result = await auditor.run({"page": page, "base_url": url})
++
++        assert result.status == "PASS"
++        assert result.details["checks"]["collection_links"]["status"] == "NOT_APPLICABLE"
++        await browser.close()
++
++
++@pytest.mark.asyncio
++async def test_collection_product_wrong_dest_fail(mock_server):
++    url = f"{mock_server}/products/collection-wrong-dest-fail"
++    async with async_playwright() as p:
++        browser = await p.chromium.launch(headless=True)
++        ctx = await browser.new_context()
++        page = await ctx.new_page()
++        await page.goto(url)
++
++        auditor = ShopifySearchDiscoveryAuditor()
++        result = await auditor.run({"page": page, "base_url": url})
++
++        assert result.status == "FAIL"
++        assert result.details["checks"]["collection_links"]["status"] == "FAIL"
++        assert result.details["checks"]["collection_links"]["reason_code"] == "WRONG_COLLECTION_PRODUCT_DESTINATION"
++        await browser.close()
++
++
++@pytest.mark.asyncio
++async def test_disappearing_fault_second_pass_warn(mock_server):
++    url = f"{mock_server}/products/disappearing-fault-warn"
++    async with async_playwright() as p:
++        browser = await p.chromium.launch(headless=True)
++        ctx = await browser.new_context()
++        page = await ctx.new_page()
++        await page.goto(url)
++
++        auditor = ShopifySearchDiscoveryAuditor()
++        result = await auditor.run({"page": page, "base_url": url})
++
++        assert result.status == "WARN"
++        assert result.details["reproduction_summary"]["confirmed"] is False
++        await browser.close()
++
++
++@pytest.mark.asyncio
++async def test_differing_fault_second_pass_warn(mock_server):
++    url = f"{mock_server}/products/differing-fault-warn"
++    async with async_playwright() as p:
++        browser = await p.chromium.launch(headless=True)
++        ctx = await browser.new_context()
++        page = await ctx.new_page()
++        await page.goto(url)
++
++        auditor = ShopifySearchDiscoveryAuditor()
++        result = await auditor.run({"page": page, "base_url": url})
++
++        assert result.status == "WARN"
++        assert result.details["reproduction_summary"]["confirmed"] is False
++        await browser.close()

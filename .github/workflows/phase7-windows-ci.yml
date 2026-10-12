@@ -1,0 +1,59 @@
+name: Phase 7 Windows CI
+
+on:
+  push:
+    branches:
+      - phase7-search-discovery-leaks
+      - nano-sre-recovery-20261007
+  pull_request:
+    branches:
+      - nano-sre-recovery-20261007
+
+jobs:
+  test:
+    runs-on: windows-latest
+    env:
+      PYTHONUTF8: "1"
+      MCP_ENABLED: "false"
+      LLM_PROVIDER: "openai"
+      LLM_API_KEY: ""
+      PYTHONPATH: "src"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          pip install pytest pytest-asyncio pytest-playwright
+          playwright install chromium
+
+      - name: Run full pytest suite
+        run: |
+          python -m pytest tests/ --junitxml=pytest_phase7_windows_junit.xml -o junit_logging=all
+
+      - name: Run Phase 7 CLI verification script
+        run: |
+          python scripts/run_phase7_cli_verification.py
+
+      - name: Package artifacts
+        if: always()
+        run: |
+          mkdir ci_artifacts
+          if (Test-Path pytest_phase7_windows_junit.xml) { Copy-Item pytest_phase7_windows_junit.xml ci_artifacts/ }
+          if (Test-Path verification_output) { Copy-Item -Recurse verification_output ci_artifacts/ }
+          if (Test-Path reports) { Copy-Item -Recurse reports ci_artifacts/ }
+
+      - name: Upload Phase 7 Windows CI Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase7-windows-ci-artifacts
+          path: ci_artifacts/
