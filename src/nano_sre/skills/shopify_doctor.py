@@ -86,8 +86,10 @@ class ShopifyDoctorSkill(Skill):
                 warnings.append("Admin API not configured - skipping advanced checks")
 
             # Navigate to storefront to capture console errors
-            logger.info(f"Navigating to storefront: {settings.store_url_str}")
-            await page.goto(settings.store_url_str, wait_until="commit")
+            target_url = context.get("base_url") or context.get("url") or (settings.store_url_str if settings else "")
+            if target_url and page.url != target_url:
+                logger.info(f"Navigating to storefront: {target_url}")
+                await page.goto(target_url, wait_until="commit")
             await asyncio.sleep(2)  # Wait for any async console errors
 
             # Report console errors as warnings to avoid failing audits on demo stores
