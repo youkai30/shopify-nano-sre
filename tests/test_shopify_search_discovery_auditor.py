@@ -11,6 +11,7 @@ from nano_sre.skills.shopify_search_discovery_auditor import ShopifySearchDiscov
 
 
 class ComprehensiveMockSearchServer(BaseHTTPRequestHandler):
+    protocol_version = "HTTP/1.0"
     flaky_count = [0]
     differing_count = [0]
 
@@ -37,6 +38,97 @@ class ComprehensiveMockSearchServer(BaseHTTPRequestHandler):
               <input type="search" name="q" placeholder="Search products...">
               <button type="submit">Search</button>
             </form>
+            </body></html>"""
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.end_headers()
+            self.wfile.write(html.encode("utf-8"))
+
+        elif path.startswith("/products/html-change-without-dom-results-warn"):
+            html = """<!doctype html><html><body>
+            <div class="search-results" id="sr-box">Initial container text</div>
+            <form action="/search-no-matching-container" method="get">
+              <input type="search" name="q" placeholder="Search...">
+              <button type="submit">Search</button>
+            </form>
+            </body></html>"""
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.end_headers()
+            self.wfile.write(html.encode("utf-8"))
+
+        elif path.startswith("/search-no-matching-container"):
+            html = """<!doctype html><html><body>
+            <div class="search-results" id="sr-box">
+              Updated container text that is much longer than fifty characters in length but does not contain matching query terms or products
+            </div>
+            <footer>
+              <a href="/products/unrelated-footer-item">Footer Product Link</a>
+            </footer>
+            </body></html>"""
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.end_headers()
+            self.wfile.write(html.encode("utf-8"))
+
+        elif path.startswith("/products/navigation-without-results-container-warn"):
+            html = """<!doctype html><html><body>
+            <header>
+              <nav><a href="/products/header-item">Header Product Item</a></nav>
+            </header>
+            <h1>Page Title</h1>
+            <form action="/search-no-results-container" method="get">
+              <input type="search" name="q" placeholder="Search...">
+              <button type="submit">Search</button>
+            </form>
+            </body></html>"""
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.end_headers()
+            self.wfile.write(html.encode("utf-8"))
+
+        elif path.startswith("/search-no-results-container"):
+            html = """<!doctype html><html><body>
+            <header>
+              <nav><a href="/products/header-item">Header Product Item</a></nav>
+            </header>
+            <h1>Search Page Header</h1>
+            <p>Welcome to search page without search results section</p>
+            </body></html>"""
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.end_headers()
+            self.wfile.write(html.encode("utf-8"))
+
+        elif path.startswith("/products/sauceshop-desktop-trigger-pass"):
+            html = """<!doctype html><html><body>
+            <h1>Sauceshop Desktop Span Trigger Demo</h1>
+            <script data-catalog-fixture type="application/json">
+            {
+              "product_id": "9016",
+              "handle": "snowboard-pass",
+              "title": "Pass Snowboard",
+              "published_status": true,
+              "eligible_for_search": true,
+              "expected_query": "snowboard"
+            }
+            </script>
+            <div class="flex flex-row gap-x-4 items-center">
+              <span class="p-2 navbar__desktop--menu__search-button" id="sauce-search-btn">
+                <svg width="20" height="21"><path d="M0 0h20v20H0z"/></svg>
+              </span>
+            </div>
+            <div class="navbar__desktop--menu__search-form" id="sauce-form" style="display:none;">
+              <form action="/search" method="get">
+                <input type="text" name="q" placeholder="Search for sauces" class="search-box">
+                <button type="submit">Search</button>
+              </form>
+            </div>
+            <script>
+            document.getElementById('sauce-search-btn').onclick = () => {
+              document.getElementById('sauce-form').style.display = 'block';
+            };
+            </script>
             </body></html>"""
             self.send_response(200)
             self.send_header("Content-Type", "text/html")
@@ -491,6 +583,57 @@ class ComprehensiveMockSearchServer(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(html.encode("utf-8"))
 
+        elif path.startswith("/products/hidden-search-trigger-pass"):
+            html = """<!doctype html><html><body>
+            <h1>Hidden Search Input Trigger Demo</h1>
+            <script data-catalog-fixture type="application/json">
+            {
+              "product_id": "9014",
+              "handle": "snowboard-pass",
+              "title": "Pass Snowboard",
+              "published_status": true,
+              "eligible_for_search": true,
+              "expected_query": "snowboard"
+            }
+            </script>
+            <button aria-label="Search Trigger" id="open-btn">Search Icon</button>
+            <div id="drawer" style="display:none;">
+              <form action="/search" method="get">
+                <input type="search" name="q" placeholder="Search products...">
+                <button type="submit">Search</button>
+              </form>
+            </div>
+            <script>
+            document.getElementById('open-btn').onclick = () => {
+              document.getElementById('drawer').style.display = 'block';
+            };
+            </script>
+            </body></html>"""
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.end_headers()
+            self.wfile.write(html.encode("utf-8"))
+
+        elif path.startswith("/products/unresolved-search-trigger-warn"):
+            html = """<!doctype html><html><body>
+            <h1>Unresolved Search Trigger Demo</h1>
+            <script data-catalog-fixture type="application/json">
+            {
+              "product_id": "9015",
+              "handle": "snowboard-pass",
+              "title": "Pass Snowboard",
+              "published_status": true,
+              "eligible_for_search": true,
+              "expected_query": "snowboard"
+            }
+            </script>
+            <div>No search form or trigger element here</div>
+            </body></html>"""
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.end_headers()
+            self.wfile.write(html.encode("utf-8"))
+
         else:
             self.send_response(404)
             self.end_headers()
@@ -503,15 +646,38 @@ def mock_server():
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     yield f"http://127.0.0.1:{port}"
-    server.shutdown()
-    server.server_close()
-    thread.join(timeout=5)
+    try:
+        server.shutdown()
+    except Exception:
+        pass
+    try:
+        server.server_close()
+    except Exception:
+        pass
 
 
 def test_skill_excluded_from_default_skills():
     auditor = ShopifySearchDiscoveryAuditor()
     assert auditor.name() == "shopify_search_discovery_auditor"
     assert "shopify_search_discovery_auditor" not in DEFAULT_SKILLS
+
+
+@pytest.mark.asyncio
+async def test_allow_live_audit_mode_allows_search_navigation(mock_server):
+    """Verify allow_live_audit=True permits search navigation while aborting mutation endpoints."""
+    url = f"{mock_server}/products/search-pass"
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        ctx = await browser.new_context()
+        page = await ctx.new_page()
+        await page.goto(url)
+
+        auditor = ShopifySearchDiscoveryAuditor()
+        context = {"page": page, "base_url": url, "allow_live_audit": True}
+        result = await auditor.run(context)
+
+        assert result.status == "PASS"
+        await browser.close()
 
 
 @pytest.mark.asyncio
@@ -527,7 +693,66 @@ async def test_missing_catalog_fixture_returns_warn(mock_server):
         result = await auditor.run({"page": page, "base_url": url})
 
         assert result.status == "WARN"
-        assert result.details["reason_code"] == "MISSING_CATALOG_FIXTURE"
+        assert result.details["checks"]["catalog_fixture"]["status"] == "WARN"
+        assert result.details["checks"]["product_eligibility"]["status"] == "WARN"
+        assert result.details["checks"]["product_eligibility"]["reason_code"] == "PRODUCT_ELIGIBILITY_UNKNOWN"
+        assert result.details.get("lead_candidate") is not True
+        await browser.close()
+
+
+@pytest.mark.asyncio
+async def test_sauceshop_results_dom_structure(mock_server):
+    """Search navigation that lands on a results page containing product links MUST pass UI search execution cleanly."""
+    url = f"{mock_server}/products/sauceshop-desktop-trigger-pass"
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        ctx = await browser.new_context()
+        page = await ctx.new_page()
+        await page.goto(url)
+
+        auditor = ShopifySearchDiscoveryAuditor()
+        result = await auditor.run({"page": page, "base_url": url})
+
+        assert result.details["checks"]["search_ui_execution"]["status"] == "PASS"
+        assert result.details["checks"]["search_ui_execution"]["reason_code"] == "NONE"
+        await browser.close()
+
+
+@pytest.mark.asyncio
+async def test_navigation_without_search_results_container_warn(mock_server):
+    """Navigation to search URL with header links but missing dedicated search results section MUST return WARN SEARCH_RESULTS_UNRESOLVED, not PASS."""
+    url = f"{mock_server}/products/navigation-without-results-container-warn"
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        ctx = await browser.new_context()
+        page = await ctx.new_page()
+        await page.goto(url)
+
+        auditor = ShopifySearchDiscoveryAuditor()
+        result = await auditor.run({"page": page, "base_url": url, "search_query": "buffalo"})
+
+        assert result.details["checks"]["search_ui_execution"]["status"] == "WARN"
+        assert result.details["checks"]["search_ui_execution"]["reason_code"] == "SEARCH_RESULTS_UNRESOLVED"
+        assert result.details.get("lead_candidate") is not True
+        await browser.close()
+
+
+@pytest.mark.asyncio
+async def test_html_changed_without_dom_results_returns_warn(mock_server):
+    """HTML changed by >50 chars with unrelated product links outside results container, but has_dom_results=False MUST return WARN SEARCH_RESULTS_UNRESOLVED, not PASS."""
+    url = f"{mock_server}/products/html-change-without-dom-results-warn"
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        ctx = await browser.new_context()
+        page = await ctx.new_page()
+        await page.goto(url)
+
+        auditor = ShopifySearchDiscoveryAuditor()
+        result = await auditor.run({"page": page, "base_url": url, "search_query": "buffalo"})
+
+        assert result.details["checks"]["search_ui_execution"]["status"] == "WARN"
+        assert result.details["checks"]["search_ui_execution"]["reason_code"] == "SEARCH_RESULTS_UNRESOLVED"
+        assert result.details.get("lead_candidate") is not True
         await browser.close()
 
 
@@ -707,6 +932,7 @@ async def test_collection_product_wrong_dest_fail(mock_server):
 
 @pytest.mark.asyncio
 async def test_disappearing_fault_second_pass_warn(mock_server):
+    ComprehensiveMockSearchServer.flaky_count[0] = 0
     url = f"{mock_server}/products/disappearing-fault-warn"
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
@@ -723,7 +949,61 @@ async def test_disappearing_fault_second_pass_warn(mock_server):
 
 
 @pytest.mark.asyncio
+async def test_hidden_search_input_trigger_pass(mock_server):
+    """Hidden search input field revealed by clicking UI trigger button MUST complete journey as PASS."""
+    url = f"{mock_server}/products/hidden-search-trigger-pass"
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        ctx = await browser.new_context()
+        page = await ctx.new_page()
+        await page.goto(url)
+
+        auditor = ShopifySearchDiscoveryAuditor()
+        result = await auditor.run({"page": page, "base_url": url})
+
+        assert result.status == "PASS"
+        await browser.close()
+
+
+@pytest.mark.asyncio
+async def test_unresolved_search_trigger_returns_warn(mock_server):
+    """Unable to detect or open search trigger element MUST return WARN with SEARCH_TRIGGER_UNRESOLVED and lead_candidate != True."""
+    url = f"{mock_server}/products/unresolved-search-trigger-warn"
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        ctx = await browser.new_context()
+        page = await ctx.new_page()
+        await page.goto(url)
+
+        auditor = ShopifySearchDiscoveryAuditor()
+        result = await auditor.run({"page": page, "base_url": url})
+
+        assert result.status == "WARN"
+        assert result.details["reason_code"] == "SEARCH_TRIGGER_UNRESOLVED"
+        assert result.details.get("lead_candidate") is not True
+        await browser.close()
+
+
+@pytest.mark.asyncio
+async def test_sauceshop_desktop_span_search_trigger_pass(mock_server):
+    """Desktop span search trigger pattern (span.navbar__desktop--menu__search-button) MUST open search input and pass journey."""
+    url = f"{mock_server}/products/sauceshop-desktop-trigger-pass"
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        ctx = await browser.new_context()
+        page = await ctx.new_page()
+        await page.goto(url)
+
+        auditor = ShopifySearchDiscoveryAuditor()
+        result = await auditor.run({"page": page, "base_url": url})
+
+        assert result.status == "PASS"
+        await browser.close()
+
+
+@pytest.mark.asyncio
 async def test_differing_fault_second_pass_warn(mock_server):
+    ComprehensiveMockSearchServer.differing_count[0] = 0
     url = f"{mock_server}/products/differing-fault-warn"
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)

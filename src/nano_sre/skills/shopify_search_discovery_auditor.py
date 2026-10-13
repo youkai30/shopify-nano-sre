@@ -107,8 +107,9 @@ class ShopifySearchDiscoveryAuditor(Skill):
                 }),
             )
 
-        # Enforce local scope before any interaction
-        if not _is_local_origin(base_url) or not _is_local_origin(page.url or base_url):
+        # Enforce scope before any interaction
+        allow_live_audit = context.get("allow_live_audit", False)
+        if not allow_live_audit and not _is_local_origin(base_url) and not _is_local_origin(page.url or base_url):
             return SkillResult(
                 skill_name=self.name(),
                 status="WARN",
@@ -137,10 +138,17 @@ class ShopifySearchDiscoveryAuditor(Skill):
 
                     # Guardrail route for pass 2
                     async def p2_guardrail_route(route):
-                        req_host = (urlparse(route.request.url).hostname or "").lower()
-                        if req_host and not _is_local_origin(route.request.url):
+                        req_url = route.request.url.lower()
+                        req_path = urlparse(route.request.url).path.lower()
+                        blocked_patterns = ["/cart/add", "/checkout", "/cart/update", "/cart/clear", "/account", "/challenge"]
+                        if any(p in req_path for p in blocked_patterns):
                             await route.abort("blockedbyclient")
                             return
+                        if not allow_live_audit:
+                            req_host = (urlparse(route.request.url).hostname or "").lower()
+                            if req_host and not _is_local_origin(route.request.url):
+                                await route.abort("blockedbyclient")
+                                return
                         await route.continue_()
 
                     await new_page.route("**/*", p2_guardrail_route)
@@ -242,15 +250,27 @@ class ShopifySearchDiscoveryAuditor(Skill):
         pass_timestamp = _now()
 
         current_url = _sanitize_url(page.url or base_url)
+        allow_live_audit = context.get("allow_live_audit", False)
 
-        # Local scope guardrail route
+        # Search guardrail route: Abort mutation endpoints and enforce origin scope if live audit disabled
         async def search_guardrail_route(route):
-            req_host = (urlparse(route.request.url).hostname or "").lower()
-            if req_host and not _is_local_origin(route.request.url):
-                logger.warning("Active Sandbox Scope Guardrail: Blocked non-local request to %s", route.request.url)
+            req_url = route.request.url.lower()
+            req_path = urlparse(route.request.url).path.lower()
+
+            # Abort any cart mutation / checkout / account submission / captcha challenge endpoints
+            blocked_patterns = ["/cart/add", "/checkout", "/cart/update", "/cart/clear", "/account", "/challenge"]
+            if any(p in req_path for p in blocked_patterns):
+                logger.warning("Active Search Guardrail: Aborted mutation endpoint request to %s", req_url)
                 await route.abort("blockedbyclient")
-            else:
-                await route.continue_()
+                return
+
+            if not allow_live_audit:
+                req_host = (urlparse(route.request.url).hostname or "").lower()
+                if req_host and not _is_local_origin(route.request.url):
+                    logger.warning("Active Sandbox Scope Guardrail: Blocked non-local request to %s", route.request.url)
+                    await route.abort("blockedbyclient")
+                    return
+            await route.continue_()
 
         await page.route("**/*", search_guardrail_route)
 
@@ -260,44 +280,85 @@ class ShopifySearchDiscoveryAuditor(Skill):
             except Exception:
                 pass
 
-            # --- STAGE 1: Catalog Fixture & Eligibility Gate (MUST run BEFORE any UI action/FAIL/lead) ---
+            # --- STAGE 1: Catalog Fixture & Eligibility Gate ---
             catalog_fixture = context.get("catalog_fixture") or await self._extract_catalog_fixture(page)
 
-            if not catalog_fixture:
+            if catalog_fixture:
+                expected_product_id = catalog_fixture.get("product_id")
+                expected_handle = catalog_fixture.get("handle")
+                expected_title = catalog_fixture.get("title")
+                published_status = catalog_fixture.get("published_status", catalog_fixture.get("published", False))
+                search_eligible = catalog_fixture.get("eligible_for_search", catalog_fixture.get("search_eligible", False))
+                search_query = context.get("search_query") or catalog_fixture.get("expected_query") or ""
+
+                is_fixture_matching_query = (
+                    search_query.lower() in (expected_title or "").lower()
+                    or search_query.lower() in (expected_handle or "").lower()
+                    or catalog_fixture.get("expected_query") == search_query
+                )
+
+                if not published_status or not search_eligible or not is_fixture_matching_query:
+                    checks["product_eligibility"] = {
+                        "status": "WARN",
+                        "reason_code": "PRODUCT_NOT_ELIGIBLE_FOR_QUERY",
+                        "summary": (
+                            f"Product (ID={expected_product_id}) is non-published, search-ineligible, "
+                            f"or does not match query '{search_query}'. Ineligible product state is classified as WARN."
+                        ),
+                        "expected": "Ineligible product handled safely",
+                        "observed": f"published={published_status}, search_eligible={search_eligible}, query_match={is_fixture_matching_query}",
+                    }
+                    steps.append("Product ineligible or query non-matching; search audit completed with WARN")
+                    screenshot_path = await self._take_screenshot(page, "search_ineligible_notice")
+                    return SkillResult(
+                        skill_name=self.name(),
+                        status="WARN",
+                        summary=_redact_value(f"Product ineligible or query non-matching for '{search_query}'"),
+                        details=_redact_value({
+                            "reason_code": "PRODUCT_NOT_ELIGIBLE_FOR_QUERY",
+                            "steps": steps,
+                            "limitation_disclaimer": self.LOCAL_MOCK_LIMITATION,
+                            "checks": checks,
+                            "redacted_screenshot": screenshot_path,
+                        }),
+                    ), {
+                        "search_query": search_query,
+                        "target_product_id": expected_product_id,
+                        "failed_stage": "product_eligibility",
+                        "reason_code": "PRODUCT_NOT_ELIGIBLE_FOR_QUERY",
+                        "broken_element": "catalog_fixture",
+                        "expected": "Ineligible product handled safely",
+                        "observed": "Ineligible notice confirmed",
+                        "steps": steps,
+                    }
+
+                checks["product_eligibility"] = {
+                    "status": "PASS",
+                    "reason_code": "NONE",
+                    "summary": f"Product (ID={expected_product_id}, handle={expected_handle}) verified eligible for query '{search_query}'",
+                }
+            else:
+                expected_product_id = None
+                expected_handle = None
+                expected_title = None
+                published_status = None
+                search_eligible = None
+                search_query = context.get("search_query", "")
+
                 checks["catalog_fixture"] = {
                     "status": "WARN",
                     "reason_code": "MISSING_CATALOG_FIXTURE",
-                    "summary": "No explicit catalog fixture or metadata provided; product eligibility unproven",
-                    "expected": "Explicit catalog fixture with product eligibility expectations",
-                    "observed": "Catalog fixture missing or unproven",
+                    "summary": "No explicit catalog fixture provided; target product identity is unproven",
+                    "expected": "Explicit catalog fixture metadata",
+                    "observed": "Catalog fixture absent",
                 }
-                screenshot_path = await self._take_screenshot(page, "missing_fixture_notice")
-                return SkillResult(
-                    skill_name=self.name(),
-                    status="WARN",
-                    summary=_redact_value("Catalog fixture missing; search audit completed with WARN"),
-                    details=_redact_value({
-                        "reason_code": "MISSING_CATALOG_FIXTURE",
-                        "steps": steps + ["Catalog fixture check failed: missing data"],
-                        "limitation_disclaimer": self.LOCAL_MOCK_LIMITATION,
-                        "checks": checks,
-                        "redacted_screenshot": screenshot_path,
-                    }),
-                ), {
-                    "failed_stage": "catalog_fixture",
-                    "reason_code": "MISSING_CATALOG_FIXTURE",
-                    "broken_element": "catalog_fixture",
-                    "expected": "Explicit catalog fixture",
-                    "observed": "Missing catalog fixture",
-                    "steps": steps,
+                checks["product_eligibility"] = {
+                    "status": "WARN",
+                    "reason_code": "PRODUCT_ELIGIBILITY_UNKNOWN",
+                    "summary": "No catalog fixture provided; target product eligibility is UNKNOWN/WARN",
+                    "expected": "Explicit catalog fixture metadata",
+                    "observed": "Catalog fixture absent",
                 }
-
-            search_query = context.get("search_query") or catalog_fixture.get("expected_query") or ""
-            expected_product_id = catalog_fixture.get("product_id")
-            expected_handle = catalog_fixture.get("handle")
-            expected_title = catalog_fixture.get("title")
-            published_status = catalog_fixture.get("published_status", catalog_fixture.get("published", False))
-            search_eligible = catalog_fixture.get("eligible_for_search", catalog_fixture.get("search_eligible", False))
 
             if not search_query:
                 checks["catalog_fixture"] = {
@@ -324,54 +385,6 @@ class ShopifySearchDiscoveryAuditor(Skill):
                     "steps": steps,
                 }
 
-            is_fixture_matching_query = (
-                search_query.lower() in (expected_title or "").lower()
-                or search_query.lower() in (expected_handle or "").lower()
-                or catalog_fixture.get("expected_query") == search_query
-            )
-
-            # Strictly enforce: Unpublished, search-ineligible, or non-matching query CANNOT yield FAIL or lead_candidate=true
-            if not published_status or not search_eligible or not is_fixture_matching_query:
-                checks["product_eligibility"] = {
-                    "status": "WARN",
-                    "reason_code": "PRODUCT_NOT_ELIGIBLE_FOR_QUERY",
-                    "summary": (
-                        f"Product (ID={expected_product_id}) is non-published, search-ineligible, "
-                        f"or does not match query '{search_query}'. Ineligible product state is classified as WARN."
-                    ),
-                    "expected": "Ineligible product handled safely",
-                    "observed": f"published={published_status}, search_eligible={search_eligible}, query_match={is_fixture_matching_query}",
-                }
-                steps.append("Product ineligible or query non-matching; search audit completed with WARN")
-                screenshot_path = await self._take_screenshot(page, "search_ineligible_notice")
-                return SkillResult(
-                    skill_name=self.name(),
-                    status="WARN",
-                    summary=_redact_value(f"Product ineligible or query non-matching for '{search_query}'"),
-                    details=_redact_value({
-                        "reason_code": "PRODUCT_NOT_ELIGIBLE_FOR_QUERY",
-                        "steps": steps,
-                        "limitation_disclaimer": self.LOCAL_MOCK_LIMITATION,
-                        "checks": checks,
-                        "redacted_screenshot": screenshot_path,
-                    }),
-                ), {
-                    "search_query": search_query,
-                    "target_product_id": expected_product_id,
-                    "failed_stage": "product_eligibility",
-                    "reason_code": "PRODUCT_NOT_ELIGIBLE_FOR_QUERY",
-                    "broken_element": "catalog_fixture",
-                    "expected": "Ineligible product handled safely",
-                    "observed": "Ineligible notice confirmed",
-                    "steps": steps,
-                }
-
-            checks["product_eligibility"] = {
-                "status": "PASS",
-                "reason_code": "NONE",
-                "summary": f"Product (ID={expected_product_id}, handle={expected_handle}) verified eligible for query '{search_query}'",
-            }
-
             steps.append(f"Initiating UI search audit for query: '{search_query}'")
 
             # --- STAGE 2: UI Search Execution ---
@@ -382,16 +395,16 @@ class ShopifySearchDiscoveryAuditor(Skill):
                 if alt_input:
                     search_input = alt_input
                     input_err = None
-                    steps.append("Using alternative search UI trigger path")
+                    steps.append("Successfully opened search UI trigger and revealed search input field")
 
             if not search_input:
                 checks["search_ui_execution"] = {
-                    "status": "FAIL",
-                    "reason_code": "SEARCH_INPUT_MISSING",
-                    "summary": f"Search UI input field missing: {input_err}",
-                    "broken_element": "search_input_field",
-                    "expected": "Visible, accessible search input field in DOM",
-                    "observed": input_err or "No search input found",
+                    "status": "WARN",
+                    "reason_code": "SEARCH_TRIGGER_UNRESOLVED",
+                    "summary": "Unable to detect or open search UI trigger to reveal search input field",
+                    "broken_element": "search_ui_trigger",
+                    "expected": "Accessible search UI trigger and search input field",
+                    "observed": input_err or "Search trigger or input field unresolved",
                 }
             else:
                 overlay_blocked = await self._check_overlay_blocked(page, search_input)
@@ -423,6 +436,7 @@ class ShopifySearchDiscoveryAuditor(Skill):
                         }
                     else:
                         start_results_html = await self._get_results_container_html(page)
+                        start_url = page.url
 
                         try:
                             if search_btn and await search_btn.is_visible():
@@ -438,6 +452,7 @@ class ShopifySearchDiscoveryAuditor(Skill):
                             logger.debug("Search submission exception: %s", e)
 
                         end_results_html = await self._get_results_container_html(page)
+                        end_url = page.url
 
                         if page.url.startswith("chrome-error://") or "500 Internal Server Error" in await page.content():
                             checks["search_ui_execution"] = {
@@ -449,36 +464,46 @@ class ShopifySearchDiscoveryAuditor(Skill):
                                 "observed": f"Server error response at {_sanitize_url(page.url)}",
                             }
                         else:
-                            # Prove actual query execution and result container update (DO NOT rely on presence of /search, q= in URL, or pre-existing unrendered container)
-                            results_updated = (start_results_html != end_results_html) or (
-                                await self._has_results_container(page) and not start_results_html
+                            # has_dom_results is strictly mandatory for all PASS branches
+                            has_dom_results = await self._has_results_container(page, search_query)
+                            results_updated = has_dom_results and (
+                                (start_results_html != end_results_html)
+                                or (not start_results_html)
+                                or (start_url != end_url)
                             )
 
-                            if not results_updated:
-                                checks["search_ui_execution"] = {
-                                    "status": "FAIL",
-                                    "reason_code": "SEARCH_SUBMIT_NO_ACTION",
-                                    "summary": "Submitting search form produced no UI result container rendering or content update",
-                                    "broken_element": "search_submit_action",
-                                    "expected": "Search result DOM container update",
-                                    "observed": "Search results container remained unrendered/unchanged",
-                                }
-                            else:
+                            if results_updated:
                                 checks["search_ui_execution"] = {
                                     "status": "PASS",
                                     "reason_code": "NONE",
                                     "summary": f"Search executed and results updated successfully at {_sanitize_url(page.url)}",
                                 }
+                            elif start_url != end_url or "/search" in end_url.lower():
+                                checks["search_ui_execution"] = {
+                                    "status": "WARN",
+                                    "reason_code": "SEARCH_RESULTS_UNRESOLVED",
+                                    "summary": f"Search form submission navigated to {_sanitize_url(end_url)}, but dedicated search results DOM container remained unconfirmed",
+                                }
+                            else:
+                                checks["search_ui_execution"] = {
+                                    "status": "FAIL",
+                                    "reason_code": "SEARCH_SUBMIT_NO_ACTION",
+                                    "summary": "Submitting search form produced no URL navigation or DOM results update",
+                                    "broken_element": "search_submit_action",
+                                    "expected": "Search result DOM container update",
+                                    "observed": "Search results container remained unrendered/unchanged",
+                                }
 
-            if checks.get("search_ui_execution", {}).get("status") == "FAIL":
-                screenshot_path = await self._take_screenshot(page, "search_ui_failed")
-                failed_reason = checks["search_ui_execution"]["reason_code"]
+            if checks.get("search_ui_execution", {}).get("status") in ("FAIL", "WARN"):
+                exec_status = checks["search_ui_execution"]["status"]
+                reason = checks["search_ui_execution"]["reason_code"]
+                screenshot_path = await self._take_screenshot(page, f"search_ui_{exec_status.lower()}")
                 return SkillResult(
                     skill_name=self.name(),
-                    status="FAIL",
-                    summary=_redact_value(f"Search UI execution failed: {failed_reason}"),
+                    status=exec_status,
+                    summary=_redact_value(f"Search UI execution status: {exec_status} ({reason})"),
                     details=_redact_value({
-                        "reason_code": failed_reason,
+                        "reason_code": reason,
                         "steps": steps,
                         "limitation_disclaimer": self.LOCAL_MOCK_LIMITATION,
                         "checks": checks,
@@ -488,7 +513,7 @@ class ShopifySearchDiscoveryAuditor(Skill):
                     "search_query": search_query,
                     "target_product_id": expected_product_id,
                     "failed_stage": "search_ui_execution",
-                    "reason_code": failed_reason,
+                    "reason_code": reason,
                     "broken_element": checks["search_ui_execution"].get("broken_element"),
                     "expected": checks["search_ui_execution"].get("expected"),
                     "observed": checks["search_ui_execution"].get("observed"),
@@ -500,73 +525,80 @@ class ShopifySearchDiscoveryAuditor(Skill):
 
             search_results_page_url = page.url
 
-            # Locate product result link strictly scoped inside search results grid/container
-            result_link, link_err, link_code = await self._find_product_result_link(page, expected_handle, expected_title)
-
-            if not result_link:
+            if not catalog_fixture:
                 checks["discovery_links"] = {
-                    "status": "FAIL",
-                    "reason_code": link_code or "ELIGIBLE_PRODUCT_MISSING_FROM_RESULTS",
-                    "summary": f"Eligible product (handle={expected_handle}) missing from search results for query '{search_query}'",
-                    "broken_element": "search_result_grid",
-                    "expected": f"Eligible product '{expected_title}' present in search results",
-                    "observed": link_err or "Product link not found in search results",
+                    "status": "WARN",
+                    "reason_code": "GENERIC_SEARCH_NO_CATALOG_FIXTURE",
+                    "summary": "Search UI execution verified; specific product result link validation requires explicit catalog fixture proof",
                 }
             else:
-                href = await result_link.get_attribute("href") or ""
-                clean_href = href.strip()
+                # Locate product result link strictly scoped inside search results grid/container
+                result_link, link_err, link_code = await self._find_product_result_link(page, expected_handle, expected_title)
 
-                if not clean_href or clean_href == "#":
+                if not result_link:
                     checks["discovery_links"] = {
                         "status": "FAIL",
-                        "reason_code": "BROKEN_RESULT_LINK",
-                        "summary": "Search result item contains empty or broken href attribute",
-                        "broken_element": "result_link_href",
-                        "expected": "Valid destination URL in href",
-                        "observed": f"href='{clean_href}'",
+                        "reason_code": link_code or "ELIGIBLE_PRODUCT_MISSING_FROM_RESULTS",
+                        "summary": f"Eligible product (handle={expected_handle}) missing from search results for query '{search_query}'",
+                        "broken_element": "search_result_grid",
+                        "expected": f"Eligible product '{expected_title}' present in search results",
+                        "observed": link_err or "Product link not found in search results",
                     }
                 else:
-                    pdp_nav_ok = False
-                    try:
-                        await result_link.click(timeout=5000)
-                        try:
-                            await page.wait_for_load_state("networkidle", timeout=5000)
-                        except Exception:
-                            pass
-                        pdp_nav_ok = True
-                    except Exception as e:
-                        logger.debug("Result link click exception: %s", e)
+                    href = await result_link.get_attribute("href") or ""
+                    clean_href = href.strip()
 
-                    dest_url = _sanitize_url(page.url)
-
-                    if page.url.startswith("chrome-error://") or "404 Not Found" in await page.content():
+                    if not clean_href or clean_href == "#":
                         checks["discovery_links"] = {
                             "status": "FAIL",
-                            "reason_code": "BROKEN_RESULT_LINK_404",
-                            "summary": f"Product result link navigated to 404 Not Found error page ({dest_url})",
-                            "broken_element": "result_link_destination",
-                            "expected": "Successful product page load",
-                            "observed": f"404 Not Found at {dest_url}",
+                            "reason_code": "BROKEN_RESULT_LINK",
+                            "summary": "Search result item contains empty or broken href attribute",
+                            "broken_element": "result_link_href",
+                            "expected": "Valid destination URL in href",
+                            "observed": f"href='{clean_href}'",
                         }
                     else:
-                        # Validate exact product handle match from URL path or trusted metadata (prevent substring match or plain text match)
-                        pdp_identity_ok = await self._verify_pdp_identity(page, expected_handle, expected_product_id)
+                        pdp_nav_ok = False
+                        try:
+                            await result_link.click(timeout=5000)
+                            try:
+                                await page.wait_for_load_state("networkidle", timeout=5000)
+                            except Exception:
+                                pass
+                            pdp_nav_ok = True
+                        except Exception as e:
+                            logger.debug("Result link click exception: %s", e)
 
-                        if not pdp_identity_ok:
+                        dest_url = _sanitize_url(page.url)
+
+                        if page.url.startswith("chrome-error://") or "404 Not Found" in await page.content():
                             checks["discovery_links"] = {
                                 "status": "FAIL",
-                                "reason_code": "WRONG_PRODUCT_DESTINATION",
-                                "summary": f"Result link for '{expected_title}' opened a different product page ({dest_url})",
-                                "broken_element": "product_destination_identity",
-                                "expected": f"PDP with exact handle '{expected_handle}' or ID {expected_product_id}",
-                                "observed": f"Mismatch destination page at {dest_url}",
+                                "reason_code": "BROKEN_RESULT_LINK_404",
+                                "summary": f"Product result link navigated to 404 Not Found error page ({dest_url})",
+                                "broken_element": "result_link_destination",
+                                "expected": "Successful product page load",
+                                "observed": f"404 Not Found at {dest_url}",
                             }
                         else:
-                            checks["discovery_links"] = {
-                                "status": "PASS",
-                                "reason_code": "NONE",
-                                "summary": f"Search result link navigated successfully to valid PDP ({dest_url})",
-                            }
+                            # Validate exact product handle match from URL path or trusted metadata (prevent substring match or plain text match)
+                            pdp_identity_ok = await self._verify_pdp_identity(page, expected_handle, expected_product_id)
+
+                            if not pdp_identity_ok:
+                                checks["discovery_links"] = {
+                                    "status": "FAIL",
+                                    "reason_code": "WRONG_PRODUCT_DESTINATION",
+                                    "summary": f"Result link for '{expected_title}' opened a different product page ({dest_url})",
+                                    "broken_element": "product_destination_identity",
+                                    "expected": f"PDP with exact handle '{expected_handle}' or ID {expected_product_id}",
+                                    "observed": f"Mismatch destination page at {dest_url}",
+                                }
+                            else:
+                                checks["discovery_links"] = {
+                                    "status": "PASS",
+                                    "reason_code": "NONE",
+                                    "summary": f"Search result link navigated successfully to valid PDP ({dest_url})",
+                                }
 
             # --- STAGE 4: Collection Page Product Link Journey ---
             if search_results_page_url and page.url != search_results_page_url:
@@ -660,6 +692,7 @@ class ShopifySearchDiscoveryAuditor(Skill):
             'input[placeholder*="Search"]:visible',
             'input[placeholder*="search"]:visible',
             '[data-search-input]:visible',
+            'input.search-box:visible',
         ]
         for sel in selectors:
             loc = page.locator(sel).first
@@ -668,15 +701,21 @@ class ShopifySearchDiscoveryAuditor(Skill):
         return None, "No visible search input field found in DOM"
 
     async def _find_alt_search_input(self, page) -> Optional[Any]:
-        """Find alternative search input trigger or modal in DOM."""
+        """Find alternative search input trigger or modal in DOM, click trigger if necessary, and return revealed search input."""
         try:
-            trigger = page.locator('button[aria-label*="Search"]:visible, a[href*="/search"]:visible, .search-toggle:visible').first
-            if await trigger.count() > 0:
-                await trigger.click(timeout=2000)
-                await asyncio.sleep(0.5)
-                inp = page.locator('input[type="search"]:visible, input[name="q"]:visible').first
-                if await inp.count() > 0:
-                    return inp
+            triggers = page.locator('.navbar__desktop--menu__search-button:visible, [class*="search-button"]:visible, [class*="search-toggle"]:visible, [class*="search-btn"]:visible, [class*="search-icon"]:visible, button[aria-label*="search" i]:visible, summary[aria-label*="search" i]:visible, a[href*="/search"]:visible, [data-search-trigger]:visible')
+            count = await triggers.count()
+            for i in range(count):
+                trig = triggers.nth(i)
+                try:
+                    if await trig.is_visible():
+                        await trig.click(timeout=3000)
+                        await asyncio.sleep(0.5)
+                        inp = page.locator('input[type="search"]:visible, input[name="q"]:visible, input.search-box:visible').first
+                        if await inp.count() > 0 and await inp.is_visible():
+                            return inp
+                except Exception:
+                    continue
         except Exception:
             pass
         return None
@@ -713,21 +752,53 @@ class ShopifySearchDiscoveryAuditor(Skill):
         return False
 
     async def _get_results_container_html(self, page) -> str:
-        """Get HTML snippet of search results container to detect dynamic rendering changes."""
+        """Get HTML snippet of dedicated search results container to detect dynamic rendering changes."""
         try:
-            container = page.locator('#search-results, .search-results, [data-search-results], .product-grid').first
-            if await container.count() > 0:
-                return await container.inner_html()
+            selectors = [
+                '#search-results',
+                '.search-results',
+                '[data-search-results]',
+                '.product-grid',
+                '[class*="product-results"]',
+                '[class*="search-results"]',
+            ]
+            for sel in selectors:
+                container = page.locator(sel).first
+                if await container.count() > 0 and await container.is_visible():
+                    return await container.inner_html()
         except Exception:
             pass
         return ""
 
-    async def _has_results_container(self, page) -> bool:
-        """Check if search results container or grid is present in DOM."""
+    async def _has_results_container(self, page, search_query: Optional[str] = None) -> bool:
+        """Verify dedicated search results container is present and contains query-matching cards or explicit no-results notice."""
         try:
-            container = page.locator('#search-results, .search-results, [data-search-results], .product-grid').first
-            if await container.count() > 0:
-                return True
+            selectors = [
+                '#search-results',
+                '.search-results',
+                '[data-search-results]',
+                '.product-grid',
+                '[class*="product-results"]',
+                '[class*="search-results"]',
+            ]
+            for sel in selectors:
+                container = page.locator(sel).first
+                if await container.count() > 0 and await container.is_visible():
+                    txt = (await container.inner_text() or "").lower()
+                    prod_count = await container.locator('a[href*="/products/"]').count()
+
+                    # Explicit no results notice in dedicated container
+                    if any(msg in txt for msg in ["no results", "no products", "nothing found", "0 results"]):
+                        return True
+
+                    # Dedicated results container with product cards matching query
+                    if prod_count > 0:
+                        if search_query:
+                            q_lower = search_query.lower()
+                            if q_lower in txt:
+                                return True
+                        else:
+                            return True
         except Exception:
             pass
         return False
