@@ -502,6 +502,107 @@ class ComprehensiveMockSearchServer(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(html.encode("utf-8"))
 
+        elif path.startswith("/products/delayed-results-pass"):
+            html = """<!doctype html><html><body>
+            <h1>Delayed Results Product Demo</h1>
+            <script data-catalog-fixture type="application/json">
+            {
+              "product_id": "9020",
+              "handle": "delayed-snowboard",
+              "title": "Delayed Snowboard",
+              "published_status": true,
+              "eligible_for_search": true,
+              "expected_query": "snowboard"
+            }
+            </script>
+            <form action="/search-delayed" method="get">
+              <input type="search" name="q" placeholder="Search products...">
+              <button type="submit">Search</button>
+            </form>
+            </body></html>"""
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.end_headers()
+            self.wfile.write(html.encode("utf-8"))
+
+        elif path.startswith("/search-delayed"):
+            html = """<!doctype html><html><body>
+            <h1>Search Results</h1>
+            <div id="results-wrapper">Searching...</div>
+            <script>
+            setTimeout(() => {
+              document.getElementById("results-wrapper").innerHTML = `
+                <div id="search-results">
+                  <div class="product-card">
+                    <a href="/products/delayed-snowboard">Delayed Snowboard</a>
+                  </div>
+                </div>
+              `;
+            }, 1000);
+            </script>
+            </body></html>"""
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.end_headers()
+            self.wfile.write(html.encode("utf-8"))
+
+        elif path.startswith("/products/delayed-snowboard"):
+            html = """<!doctype html><html><body>
+            <h1>Delayed Snowboard PDP</h1>
+            <p>Product ID: 9020</p>
+            </body></html>"""
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.end_headers()
+            self.wfile.write(html.encode("utf-8"))
+
+        elif path.startswith("/products/mismatch-destination-fail"):
+            html = """<!doctype html><html><body>
+            <h1>Mismatch Destination Demo</h1>
+            <script data-catalog-fixture type="application/json">
+            {
+              "product_id": "9021",
+              "handle": "expected-snowboard",
+              "title": "Expected Snowboard",
+              "published_status": true,
+              "eligible_for_search": true,
+              "expected_query": "snowboard"
+            }
+            </script>
+            <form action="/search-mismatch" method="get">
+              <input type="search" name="q" placeholder="Search products...">
+              <button type="submit">Search</button>
+            </form>
+            </body></html>"""
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.end_headers()
+            self.wfile.write(html.encode("utf-8"))
+
+        elif path.startswith("/search-mismatch"):
+            html = """<!doctype html><html><body>
+            <h1>Search Results</h1>
+            <div id="search-results">
+              <div class="product-card">
+                <a href="/products/wrong-product">Wrong Product</a>
+              </div>
+            </div>
+            </body></html>"""
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.end_headers()
+            self.wfile.write(html.encode("utf-8"))
+
+        elif path.startswith("/products/wrong-product"):
+            html = """<!doctype html><html><body>
+            <h1>Wrong Product PDP</h1>
+            <p>Product ID: 9999</p>
+            </body></html>"""
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.end_headers()
+            self.wfile.write(html.encode("utf-8"))
+
         elif path.startswith("/products/differing-fault-warn"):
             ComprehensiveMockSearchServer.differing_count[0] += 1
             if ComprehensiveMockSearchServer.differing_count[0] == 1:
@@ -998,6 +1099,42 @@ async def test_sauceshop_desktop_span_search_trigger_pass(mock_server):
         result = await auditor.run({"page": page, "base_url": url})
 
         assert result.status == "PASS"
+        await browser.close()
+
+
+@pytest.mark.asyncio
+async def test_delayed_results_within_timeout_pass(mock_server):
+    """Delayed search results rendered asynchronously within timeout MUST pass UI search execution cleanly."""
+    url = f"{mock_server}/products/delayed-results-pass"
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        ctx = await browser.new_context()
+        page = await ctx.new_page()
+        await page.goto(url)
+
+        auditor = ShopifySearchDiscoveryAuditor()
+        result = await auditor.run({"page": page, "base_url": url})
+
+        assert result.status == "PASS"
+        assert result.details["checks"]["search_ui_execution"]["status"] == "PASS"
+        await browser.close()
+
+
+@pytest.mark.asyncio
+async def test_mismatch_destination_product_fail(mock_server):
+    """Result link opening mismatched product PDP handle MUST return FAIL (WRONG_PRODUCT_DESTINATION)."""
+    url = f"{mock_server}/products/mismatch-destination-fail"
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        ctx = await browser.new_context()
+        page = await ctx.new_page()
+        await page.goto(url)
+
+        auditor = ShopifySearchDiscoveryAuditor()
+        result = await auditor.run({"page": page, "base_url": url})
+
+        assert result.status == "FAIL"
+        assert result.details["reason_code"] == "WRONG_PRODUCT_DESTINATION"
         await browser.close()
 
 
