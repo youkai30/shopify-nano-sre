@@ -464,8 +464,8 @@ class ShopifySearchDiscoveryAuditor(Skill):
                                 "observed": f"Server error response at {_sanitize_url(page.url)}",
                             }
                         else:
-                            # has_dom_results is strictly mandatory for all PASS branches
-                            has_dom_results = await self._has_results_container(page, search_query)
+                            # Wait up to 5000ms for delayed results container rendering
+                            has_dom_results = await self._wait_for_results_container(page, search_query, timeout_ms=5000)
                             results_updated = has_dom_results and (
                                 (start_results_html != end_results_html)
                                 or (not start_results_html)
@@ -761,11 +761,19 @@ class ShopifySearchDiscoveryAuditor(Skill):
                 '.product-grid',
                 '[class*="product-results"]',
                 '[class*="search-results"]',
+                '.collection-grid',
             ]
             for sel in selectors:
                 container = page.locator(sel).first
                 if await container.count() > 0 and await container.is_visible():
                     return await container.inner_html()
+
+            # Heading-adjacent product results container (e.g., Sauce Shop "Product Results" grid)
+            heading = page.locator('h1:has-text("Product Results"), h2:has-text("Product Results"), h3:has-text("Product Results"), h1:has-text("Search Results"), h2:has-text("Search Results"), h3:has-text("Search Results")').first
+            if await heading.count() > 0 and await heading.is_visible():
+                sibling_grid = heading.locator('xpath=following-sibling::div[contains(@class, "grid") or contains(@class, "product")][1]').first
+                if await sibling_grid.count() > 0 and await sibling_grid.is_visible():
+                    return await sibling_grid.inner_html()
         except Exception:
             pass
         return ""
@@ -780,6 +788,7 @@ class ShopifySearchDiscoveryAuditor(Skill):
                 '.product-grid',
                 '[class*="product-results"]',
                 '[class*="search-results"]',
+                '.collection-grid',
             ]
             for sel in selectors:
                 container = page.locator(sel).first
@@ -788,26 +797,39 @@ class ShopifySearchDiscoveryAuditor(Skill):
                     prod_count = await container.locator('a[href*="/products/"]').count()
 
                     # Explicit no results notice in dedicated container
-                    if any(msg in txt for msg in ["no results", "no products", "nothing found", "0 results"]):
+                    if any(msg in txt for msg in ["no results", "no products", "nothing found", "0 results", "no matches"]):
                         return True
 
-                    # Dedicated results container with product cards matching query
+                    # Dedicated results container with product cards
                     if prod_count > 0:
-                        if search_query:
-                            q_lower = search_query.lower()
-                            if q_lower in txt:
-                                return True
-                        else:
-                            return True
+                        return True
+
+            # Heading-adjacent product results container (e.g., Sauce Shop "Product Results" grid)
+            heading = page.locator('h1:has-text("Product Results"), h2:has-text("Product Results"), h3:has-text("Product Results"), h1:has-text("Search Results"), h2:has-text("Search Results"), h3:has-text("Search Results")').first
+            if await heading.count() > 0 and await heading.is_visible():
+                sibling_grid = heading.locator('xpath=following-sibling::div[contains(@class, "grid") or contains(@class, "product")][1]').first
+                if await sibling_grid.count() > 0 and await sibling_grid.is_visible():
+                    prod_count = await sibling_grid.locator('a[href*="/products/"]').count()
+                    if prod_count > 0:
+                        return True
         except Exception:
             pass
+        return False
+
+    async def _wait_for_results_container(self, page, search_query: Optional[str] = None, timeout_ms: int = 5000) -> bool:
+        """Poll and wait for delayed/asynchronous search results rendering within timeout limit."""
+        start_time = asyncio.get_event_loop().time()
+        while (asyncio.get_event_loop().time() - start_time) * 1000 < timeout_ms:
+            if await self._has_results_container(page, search_query):
+                return True
+            await asyncio.sleep(0.3)
         return False
 
     async def _find_product_result_link(
         self, page, expected_handle: Optional[str], expected_title: Optional[str]
     ) -> tuple[Optional[Any], Optional[str], Optional[str]]:
         """Find result product link strictly scoped inside search results container."""
-        results_container = page.locator('#search-results, .search-results, [data-search-results], .product-grid').first
+        results_container = page.locator('#search-results, .search-results, [data-search-results], .product-grid, main, #main, [role="main"], div[class*="grid"]').first
         search_root = results_container if await results_container.count() > 0 else page
 
         if expected_handle:
