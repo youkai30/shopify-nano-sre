@@ -10,7 +10,7 @@
 | regalrose.co.uk | ⚠️ WARN | ⚠️ WARN | ⚠️ WARN | ⚠️ WARN | ⚠️ WARN | ⚠️ WARN | ⚠️ WARN |
 | rokalondon.com | ❌ FAIL | ⚠️ WARN | ⚠️ WARN | ⚠️ WARN | ⚠️ WARN | ⚠️ WARN | ⚠️ WARN |
 | sauceshop.co | ✅ PASS | ⚠️ WARN | ⚠️ WARN | ⚠️ WARN | ⚠️ WARN | ⚠️ WARN | ⚠️ WARN |
-| sophieallport.com | ⚠️ WARN | ⚠️ WARN | ⚠️ WARN | ⚠️ WARN | ⚠️ WARN | ⚠️ WARN | N/A |
+| sophieallport.com | ✅ PASS | ⚠️ WARN | ⚠️ WARN | ⚠️ WARN | ⚠️ WARN | ⚠️ WARN | ⚠️ WARN |
 | upcirclebeauty.com | ⚠️ WARN | ⚠️ WARN | ⚠️ WARN | ⚠️ WARN | ⚠️ WARN | ⚠️ WARN | ⚠️ WARN |
 
 ## Non-PASS Details
@@ -65,7 +65,7 @@ Call log:
       - <div role="dialog" aria-modal="true" aria-label="POPUP Form" data-kl-scroll-locking-modal="true" class="needsclick  kl-private-reset-css-Xuajs1">…</div> from <div>…</div> subtree intercepts pointer events
     - retrying click action
       - waiting 100ms
-    16 × waiting for element to be visible, enabled and stable
+    15 × waiting for element to be visible, enabled and stable
        - element is visible, enabled and stable
        - scrolling into view if needed
        - done scrolling
@@ -85,15 +85,15 @@ Call log:
 - **sauceshop.co** [shopify_variant_auditor] (WARN): Could not establish main product form binding on PDP
 - **sauceshop.co** [shopify_purchase_blocker_auditor] (WARN): Option selection issue: Option selection in DOM could not be proven for all options ({})
 - **sauceshop.co** [shopify_mobile_purchase_blocker_auditor] (WARN): Mobile option selection issue: Option selection in DOM could not be proven for all options ({})
-- **sauceshop.co** [shopify_cart_consistency_auditor] (WARN): Could not locate Add to Cart button in DOM
+- **sauceshop.co** [shopify_cart_consistency_auditor] (WARN): Variant selection unproven in DOM: Option control 'Size=5' exists but produced no active selection state in DOM
 - **sauceshop.co** [shopify_checkout_blocker_auditor] (WARN): Target URL is outside local sandbox origin; checkout audit skipped for safety
 - **sauceshop.co** [shopify_search_discovery_auditor] (WARN): Search query missing; search audit skipped with WARN
-- **sophieallport.com** [shopify_shopper] (WARN): Visible checkout button not found in cart
 - **sophieallport.com** [shopify_variant_auditor] (WARN): Could not establish main product form binding on PDP
-- **sophieallport.com** [shopify_purchase_blocker_auditor] (WARN): Main product form or Add to Cart button binding unconfirmed
-- **sophieallport.com** [shopify_mobile_purchase_blocker_auditor] (WARN): Main product form or Add to Cart button binding unconfirmed on mobile
+- **sophieallport.com** [shopify_purchase_blocker_auditor] (WARN): Option selection issue: Option selection in DOM could not be proven for all options ({})
+- **sophieallport.com** [shopify_mobile_purchase_blocker_auditor] (WARN): Mobile option selection issue: Option selection in DOM could not be proven for all options ({})
 - **sophieallport.com** [shopify_cart_consistency_auditor] (WARN): Could not locate Add to Cart button in DOM
 - **sophieallport.com** [shopify_checkout_blocker_auditor] (WARN): Target URL is outside local sandbox origin; checkout audit skipped for safety
+- **sophieallport.com** [shopify_search_discovery_auditor] (WARN): Search query missing; search audit skipped with WARN
 - **upcirclebeauty.com** [shopify_shopper] (WARN): Could not find a product with an enabled Add to Cart button
 - **upcirclebeauty.com** [shopify_variant_auditor] (WARN): Could not fetch product JSON from https://upcirclebeauty.com/products/natural-lip-balm.js
 - **upcirclebeauty.com** [shopify_purchase_blocker_auditor] (WARN): Could not fetch product JSON from https://upcirclebeauty.com/products/natural-lip-balm.js

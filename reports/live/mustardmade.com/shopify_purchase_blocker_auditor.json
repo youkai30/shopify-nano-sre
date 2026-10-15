@@ -17,7 +17,7 @@
     },
     "expected": "Visible enabled Add to Cart button bound to product form",
     "observed": "Button binding unconfirmed",
-    "timestamp": "2026-10-15T21:28:52.883072+00:00",
+    "timestamp": "2026-10-15T22:30:28.001947+00:00",
     "reproduction_steps": [
       "Navigate to https://mustardmade.com/products/the-flutes-fazeek-mustard-exclusive-collaboration",
       "Inspect product form and ATC button"
@@ -35,7 +35,7 @@
   "intercepted_pointer_elements": [
     {
       "tagName": "BODY",
-      "outerHTML": "<body id=\"the-flutes\" class=\"template-product template-product--basic-product grid-classic aos-initialized has-header-sticky has-header-transparent has-first-section-overlay-header osf-theme-live-mustard-template---au is-loaded swym-ready swym-[live]mustardtemplate-au-null swym-[live]mustardtemplate"
+      "outerHTML": "<body id=\"the-flutes\" class=\"template-product template-product--basic-product grid-classic aos-initialized has-header-sticky has-header-transparent has-first-section-overlay-header osf-theme-live-mustard-template---au is-loaded jdgm-buyer-badge--top-right swym-ready swym-[live]mustardtemplate-au-nul"
     },
     {
       "tagName": "DIV",

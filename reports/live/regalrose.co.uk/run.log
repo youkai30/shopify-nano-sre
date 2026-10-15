@@ -20,6 +20,7 @@ Captured /products/<handle>.js: HTTP 200 at https://www.regalrose.co.uk/products
 Captured /products/<handle>.js: HTTP 200 at https://www.regalrose.co.uk/products/heresy-witches-boot-pearl-stud-earring-silver.js
 Captured /products/<handle>.js: HTTP 200 at https://www.regalrose.co.uk/products/heresy-witches-boot-pearl-stud-earring-silver.js
 Captured /products/<handle>.js: HTTP 200 at https://www.regalrose.co.uk/products/heresy-witches-boot-pearl-stud-earring-gold.js
+Captured /products/<handle>.js: HTTP 200 at https://www.regalrose.co.uk/products/heresy-witches-boot-pearl-stud-earring-gold.js
 Captured /products/<handle>.js: HTTP 200 at https://www.regalrose.co.uk/products/heresy-witches-boot-pearl-necklace-silver.js
 Captured /products/<handle>.js: HTTP 200 at https://www.regalrose.co.uk/products/heresy-witches-boot-pearl-necklace-silver.js
 Captured /products/<handle>.js: HTTP 200 at https://www.regalrose.co.uk/products/heresy-witches-boot-pearl-necklace-gold.js
@@ -58,7 +59,7 @@ Call log:
       - <div role="dialog" aria-modal="true" aria-label="POPUP Form" data-kl-scroll-locking-modal="true" class="needsclick  kl-private-reset-css-Xuajs1">…</div> from <div>…</div> subtree intercepts pointer events
     - retrying click action
       - waiting 100ms
-    16 × waiting for element to be visible, enabled and stable
+    15 × waiting for element to be visible, enabled and stable
        - element is visible, enabled and stable
        - scrolling into view if needed
        - done scrolling

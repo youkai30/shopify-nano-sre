@@ -8,6 +8,7 @@
     "steps": [
       "Auditing product handle on mobile (390x844): the-flutes-fazeek-mustard-exclusive-collaboration",
       "Successfully selected required variant options on mobile",
+      "Scrolled to Add to Cart button on mobile",
       "Primary button blocked, but found valid unblocked alternative ATC button",
       "Tapped Add to Cart button using touch action",
       "ATC button tapped, but no network request was captured"
@@ -20,7 +21,7 @@
     },
     "expected": "ATC tap triggers add request",
     "observed": "Tap produced no network request",
-    "timestamp": "2026-10-15T21:29:09.458027+00:00",
+    "timestamp": "2026-10-15T22:30:45.391530+00:00",
     "reproduction_steps": [
       "Navigate to https://mustardmade.com/products/the-flutes-fazeek-mustard-exclusive-collaboration",
       "Tap Add to Cart"
@@ -29,12 +30,12 @@
     "network_cart_evidence": {
       "meta_before": {
         "status": "nonempty",
-        "captured_at": "2026-10-15T21:29:03.337801+00:00",
+        "captured_at": "2026-10-15T22:30:39.486701+00:00",
         "item_count": 1
       },
       "meta_after": {
         "status": "nonempty",
-        "captured_at": "2026-10-15T21:29:08.745907+00:00",
+        "captured_at": "2026-10-15T22:30:44.876393+00:00",
         "item_count": 1
       },
       "add_request_summary": {
@@ -68,7 +69,7 @@
       },
       "360x800": {
         "status": "WARN",
-        "summary": "Add to Cart request returned HTTP 200 but target variant quantity did not increase",
+        "summary": "Add to Cart tap executed on mobile but request dispatch could not be confirmed",
         "reason_code": "NETWORK_OR_RESPONSE_UNRESOLVED",
         "blocker_identity": {}
       }
@@ -90,7 +91,7 @@
   "intercepted_pointer_elements": [
     {
       "tagName": "BODY",
-      "outerHTML": "<body id=\"the-flutes\" class=\"template-product template-product--basic-product grid-classic aos-initialized has-header-sticky has-header-transparent has-first-section-overlay-header osf-theme-live-mustard-template---au is-loaded swym-ready swym-[live]mustardtemplate-au-null swym-[live]mustardtemplate"
+      "outerHTML": "<body id=\"the-flutes\" class=\"template-product template-product--basic-product grid-classic aos-initialized has-header-sticky has-header-transparent has-first-section-overlay-header osf-theme-live-mustard-template---au is-loaded jdgm-buyer-badge--top-right swym-ready swym-[live]mustardtemplate-au-nul"
     },
     {
       "tagName": "DIV",

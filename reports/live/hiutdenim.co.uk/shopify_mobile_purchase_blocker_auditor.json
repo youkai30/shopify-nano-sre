@@ -11,7 +11,7 @@
     "proven_purchase_conditions": {},
     "expected": "Fetch JSON from https://hiutdenim.co.uk/products/the-astrid-barrel-fit-organic-denim.js",
     "observed": "Request failed or invalid response",
-    "timestamp": "2026-10-15T21:30:07.781424+00:00",
+    "timestamp": "2026-10-15T22:31:48.171887+00:00",
     "reproduction_steps": [
       "GET https://hiutdenim.co.uk/products/the-astrid-barrel-fit-organic-denim.js"
     ],

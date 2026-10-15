@@ -1,7 +1,7 @@
 {
   "skill_name": "shopify_shopper",
-  "status": "WARN",
-  "summary": "Visible checkout button not found in cart",
+  "status": "PASS",
+  "summary": "Shopper journey reached checkout successfully (Product -> Cart -> Checkout)",
   "details": {
     "steps": [
       "Visited Home Page",
@@ -10,9 +10,10 @@
       "Clicked Add to Cart",
       "Cart verified through cart.js: 1 item(s)",
       "Cart verified: 1 item(s)",
-      "Visited Cart Page"
+      "Visited Checkout"
     ],
     "cart_item_count": 1,
+    "checkout_url": "https://www.sophieallport.com/checkouts/[redacted]",
     "selected_product": "https://sophieallport.com/products/gift-voucher",
     "cart_evidence": [
       {
@@ -29,8 +30,8 @@
       "status": "nonempty",
       "source": "api",
       "trigger": "api_only_fallback",
-      "attempted_at": "2026-10-15T21:24:05.110070+00:00",
-      "captured_at": "2026-10-15T21:24:05.588373+00:00",
+      "attempted_at": "2026-10-15T22:29:10.664110+00:00",
+      "captured_at": "2026-10-15T22:29:10.927383+00:00",
       "api_total_quantity": 1,
       "api_line_count": 1,
       "http_status": 200,
@@ -38,7 +39,7 @@
     }
   },
   "error": null,
-  "screenshot": "reports/live/sophieallport.com/shopify_shopper_screenshot.png",
+  "screenshot": null,
   "ajax_product_meta": {
     "status": 200,
     "final_url": "https://www.sophieallport.com/products/gift-voucher.js",

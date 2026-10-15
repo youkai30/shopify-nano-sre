@@ -1,11 +1,12 @@
 {
   "skill_name": "shopify_cart_consistency_auditor",
   "status": "WARN",
-  "summary": "Could not locate Add to Cart button in DOM",
+  "summary": "Variant selection unproven in DOM: Option control 'Size=5' exists but produced no active selection state in DOM",
   "details": {
-    "reason_code": "BUTTON_MISSING",
+    "reason_code": "UNPROVEN_OPTION_PATTERN",
     "steps": [
-      "Auditing product handle: custom-gift-box"
+      "Auditing product handle: custom-gift-box",
+      "Option selection issue: Option control 'Size=5' exists but produced no active selection state in DOM"
     ],
     "checks": {}
   },

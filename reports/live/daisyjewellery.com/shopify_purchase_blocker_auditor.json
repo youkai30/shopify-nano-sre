@@ -16,12 +16,12 @@
     },
     "expected": "Mandatory option can be interacted with and selected",
     "observed": "Option selection failed or unproven: Option selection in DOM could not be proven for all options ({})",
-    "timestamp": "2026-10-15T21:30:51.716769+00:00",
+    "timestamp": "2026-10-15T22:32:31.353648+00:00",
     "reproduction_steps": [
       "Navigate to https://www.daisyjewellery.com/products/daisy-egift-card",
       "Select option values for variant [REDACTED][REDACTED]"
     ],
-    "redacted_screenshot": "reports/screenshots/blocker_audit_option_issue_1792099851.png",
+    "redacted_screenshot": "reports/screenshots/blocker_audit_option_issue_1792103551.png",
     "network_cart_evidence": {}
   },
   "error": null,

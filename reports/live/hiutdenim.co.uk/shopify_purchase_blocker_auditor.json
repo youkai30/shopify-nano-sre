@@ -10,7 +10,7 @@
     "proven_purchase_conditions": {},
     "expected": "Fetch JSON from https://hiutdenim.co.uk/products/repair-shipping.js",
     "observed": "Request failed or invalid response",
-    "timestamp": "2026-10-15T21:30:04.071824+00:00",
+    "timestamp": "2026-10-15T22:31:44.742279+00:00",
     "reproduction_steps": [
       "GET https://hiutdenim.co.uk/products/repair-shipping.js"
     ],

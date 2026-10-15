@@ -24,7 +24,7 @@
     },
     "expected": "Mandatory option can be interacted with and selected in DOM on mobile",
     "observed": "Option selection failed or unproven: Option selection in DOM could not be proven for all options ({})",
-    "timestamp": "2026-10-15T21:31:58.433316+00:00",
+    "timestamp": "2026-10-15T22:25:33.156213+00:00",
     "reproduction_steps": [
       "Navigate to https://www.sauceshop.co/products/custom-gift-box",
       "Select option values for variant [REDACTED][REDACTED]"

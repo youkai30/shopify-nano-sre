@@ -5,7 +5,7 @@
   "details": {
     "reason_code": "BUTTON_MISSING",
     "steps": [
-      "Auditing product handle: garden-floral-fabric-sample"
+      "Auditing product handle: personalised-cat-print"
     ],
     "checks": {}
   },
@@ -13,7 +13,7 @@
   "screenshot": "reports/live/sophieallport.com/shopify_cart_consistency_auditor_screenshot.png",
   "ajax_product_meta": {
     "status": 200,
-    "final_url": "https://www.sophieallport.com/products/gift-voucher.js",
+    "final_url": "https://www.sophieallport.com/products/personalised-cat-print.js",
     "handle": null
   },
   "intercepted_pointer_elements": []

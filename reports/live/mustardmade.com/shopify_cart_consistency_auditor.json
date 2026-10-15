@@ -19,7 +19,7 @@
   "intercepted_pointer_elements": [
     {
       "tagName": "BODY",
-      "outerHTML": "<body id=\"the-flutes\" class=\"template-product template-product--basic-product grid-classic aos-initialized has-header-sticky has-header-transparent has-first-section-overlay-header osf-theme-live-mustard-template---au is-loaded swym-ready swym-[live]mustardtemplate-au-null swym-[live]mustardtemplate"
+      "outerHTML": "<body id=\"the-flutes\" class=\"template-product template-product--basic-product grid-classic aos-initialized has-header-sticky has-header-transparent has-first-section-overlay-header osf-theme-live-mustard-template---au is-loaded jdgm-buyer-badge--top-right swym-ready swym-[live]mustardtemplate-au-nul"
     },
     {
       "tagName": "DIV",

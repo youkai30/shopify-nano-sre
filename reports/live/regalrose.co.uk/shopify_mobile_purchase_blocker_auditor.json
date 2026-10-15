@@ -24,12 +24,12 @@
     },
     "expected": "Mandatory option can be interacted with and selected in DOM on mobile",
     "observed": "Option selection failed or unproven: Option selection in DOM could not be proven for all options ({})",
-    "timestamp": "2026-10-15T21:23:10.656439+00:00",
+    "timestamp": "2026-10-15T22:28:13.740883+00:00",
     "reproduction_steps": [
       "Navigate to https://www.regalrose.co.uk/products/regalrose-12-day-jewellery-advent-calendar-silver",
       "Select option values for variant [REDACTED][REDACTED]"
     ],
-    "redacted_screenshot": "reports/screenshots/mobile_blocker_audit_option_issue_1792099389.png",
+    "redacted_screenshot": "reports/screenshots/mobile_blocker_audit_option_issue_1792103292.png",
     "network_cart_evidence": {},
     "mobile_context_config": {
       "name": "390x844",
