@@ -1,0 +1,106 @@
+{
+  "skill_name": "shopify_mobile_purchase_blocker_auditor",
+  "status": "WARN",
+  "summary": "Could not fetch product JSON from https://rokalondon.com/products/roka-london-gift-card.js",
+  "details": {
+    "reason_code": "PRODUCT_JSON_UNAVAILABLE",
+    "blocker_identity": {},
+    "steps": [
+      "Auditing product handle on mobile (390x844): roka-london-gift-card"
+    ],
+    "proven_purchase_conditions": {},
+    "expected": "Fetch JSON from https://rokalondon.com/products/roka-london-gift-card.js",
+    "observed": "Request failed or invalid response",
+    "timestamp": "2026-10-15T21:21:59.307312+00:00",
+    "reproduction_steps": [
+      "GET https://rokalondon.com/products/roka-london-gift-card.js"
+    ],
+    "redacted_screenshot": null,
+    "network_cart_evidence": {},
+    "mobile_context_config": {
+      "name": "390x844",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+      "is_mobile": true,
+      "has_touch": true,
+      "environment": "Chromium mobile emulation (390x844, touch-enabled)"
+    },
+    "environment": "Chromium mobile emulation",
+    "tested_viewports": [
+      "390x844",
+      "360x800"
+    ],
+    "viewport_results": {
+      "390x844": {
+        "status": "WARN",
+        "summary": "Could not fetch product JSON from https://rokalondon.com/products/roka-london-gift-card.js",
+        "reason_code": "PRODUCT_JSON_UNAVAILABLE",
+        "blocker_identity": {}
+      },
+      "360x800": {
+        "status": "WARN",
+        "summary": "Could not fetch product JSON from https://rokalondon.com/products/roka-london-gift-card.js",
+        "reason_code": "PRODUCT_JSON_UNAVAILABLE",
+        "blocker_identity": {}
+      }
+    },
+    "desktop_comparison": {
+      "classification": "NOT_NEEDED_FOR_WARN"
+    },
+    "reproduction_summary": {
+      "classification": "NOT_NEEDED"
+    }
+  },
+  "error": null,
+  "screenshot": "reports/live/rokalondon.com/shopify_mobile_purchase_blocker_auditor_screenshot.png",
+  "ajax_product_meta": {
+    "status": 200,
+    "final_url": "https://rokalondon.com/products/oxford-shoulder-bag-in-dijon.js",
+    "handle": null
+  },
+  "intercepted_pointer_elements": [
+    {
+      "tagName": "SPAN",
+      "outerHTML": "<span class=\"animated-search-text__overlay\" data-animated-search-text-overlay=\"\" aria-hidden=\"false\">\n        <span class=\"animated-search-text__prefix\" style=\"\">Search</span>\n        <span class=\"animated-search-text__typewriter\" data-animated-search-text-typewriter=\"\" style=\"\">by colou</span>\n    "
+    },
+    {
+      "tagName": "PRODUCT-DYNAMIC-BADGES",
+      "outerHTML": "<product-dynamic-badges class=\"product-badges product-badges--overlay\" data-product-id=\"7531629412455\" data-low-stock-threshold=\"5\" data-product-available=\"true\" data-badge-limit=\"2\" data-sale-label=\"__PERCENT__% off\" data-sale-fallback=\"Sale\" data-variants=\"[{&quot;id&quot;:42177743257703,&quot;pri"
+    },
+    {
+      "tagName": "PRODUCT-DYNAMIC-BADGES",
+      "outerHTML": "<product-dynamic-badges class=\"product-badges product-badges--overlay\" data-product-id=\"7517624795239\" data-low-stock-threshold=\"5\" data-product-available=\"true\" data-badge-limit=\"2\" data-sale-label=\"__PERCENT__% off\" data-sale-fallback=\"Sale\" data-variants=\"[{&quot;id&quot;:42136931762279,&quot;pri"
+    },
+    {
+      "tagName": "PRODUCT-DYNAMIC-BADGES",
+      "outerHTML": "<product-dynamic-badges class=\"product-badges product-badges--overlay\" data-product-id=\"7531635310695\" data-low-stock-threshold=\"5\" data-product-available=\"true\" data-badge-limit=\"2\" data-sale-label=\"__PERCENT__% off\" data-sale-fallback=\"Sale\" data-variants=\"[{&quot;id&quot;:42177750892647,&quot;pri"
+    },
+    {
+      "tagName": "PRODUCT-DYNAMIC-BADGES",
+      "outerHTML": "<product-dynamic-badges class=\"product-badges product-badges--overlay\" data-product-id=\"7531665457255\" data-low-stock-threshold=\"5\" data-product-available=\"true\" data-badge-limit=\"2\" data-sale-label=\"__PERCENT__% off\" data-sale-fallback=\"Sale\" data-variants=\"[{&quot;id&quot;:42177822097511,&quot;pri"
+    },
+    {
+      "tagName": "PRODUCT-DYNAMIC-BADGES",
+      "outerHTML": "<product-dynamic-badges class=\"product-badges product-badges--overlay\" data-product-id=\"7652110008423\" data-low-stock-threshold=\"5\" data-product-available=\"true\" data-badge-limit=\"2\" data-sale-label=\"__PERCENT__% off\" data-sale-fallback=\"Sale\" data-variants=\"[{&quot;id&quot;:43941575000167,&quot;pri"
+    },
+    {
+      "tagName": "PRODUCT-DYNAMIC-BADGES",
+      "outerHTML": "<product-dynamic-badges class=\"product-badges product-badges--overlay\" data-product-id=\"7531636752487\" data-low-stock-threshold=\"5\" data-product-available=\"true\" data-badge-limit=\"2\" data-sale-label=\"__PERCENT__% off\" data-sale-fallback=\"Sale\" data-variants=\"[{&quot;id&quot;:42177752760423,&quot;pri"
+    },
+    {
+      "tagName": "PRODUCT-DYNAMIC-BADGES",
+      "outerHTML": "<product-dynamic-badges class=\"product-badges product-badges--overlay\" data-product-id=\"7531629379687\" data-low-stock-threshold=\"5\" data-product-available=\"true\" data-badge-limit=\"2\" data-sale-label=\"__PERCENT__% off\" data-sale-fallback=\"Sale\" data-variants=\"[{&quot;id&quot;:42177743126631,&quot;pri"
+    },
+    {
+      "tagName": "PRODUCT-DYNAMIC-BADGES",
+      "outerHTML": "<product-dynamic-badges class=\"product-badges product-badges--overlay\" data-product-id=\"7531640717415\" data-low-stock-threshold=\"5\" data-product-available=\"true\" data-badge-limit=\"2\" data-sale-label=\"__PERCENT__% off\" data-sale-fallback=\"Sale\" data-variants=\"[{&quot;id&quot;:42177758167143,&quot;pri"
+    },
+    {
+      "tagName": "DIV",
+      "outerHTML": "<div id=\"salesfire-overlay\" style=\"position: fixed; top: 0px; visibility: visible; left: 0px; height: 100%; width: 100%; z-index: 999999999; overflow: inherit; color-scheme: normal; display: block;\"><iframe scrolling=\"no\" src=\"about:blank\" style=\"border: none; height: 1px; width: 100%; min-height: 1"
+    }
+  ]
+}

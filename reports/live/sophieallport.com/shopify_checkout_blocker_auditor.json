@@ -1,0 +1,21 @@
+{
+  "skill_name": "shopify_checkout_blocker_auditor",
+  "status": "WARN",
+  "summary": "Target URL is outside local sandbox origin; checkout audit skipped for safety",
+  "details": {
+    "reason_code": "NON_LOCAL_SCOPE_BLOCKED",
+    "steps": [
+      "Local origin scope check failed"
+    ],
+    "limitation_disclaimer": "Local mock checkout audit verifies DOM, network transitions, and local fixture steps up to payment step access, but does NOT prove compatibility with live Shopify checkout or payment gateways.",
+    "checks": {}
+  },
+  "error": null,
+  "screenshot": "reports/live/sophieallport.com/shopify_checkout_blocker_auditor_screenshot.png",
+  "ajax_product_meta": {
+    "status": 200,
+    "final_url": "https://www.sophieallport.com/products/gift-voucher.js",
+    "handle": null
+  },
+  "intercepted_pointer_elements": []
+}

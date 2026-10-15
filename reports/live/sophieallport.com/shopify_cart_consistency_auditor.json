@@ -1,0 +1,20 @@
+{
+  "skill_name": "shopify_cart_consistency_auditor",
+  "status": "WARN",
+  "summary": "Could not locate Add to Cart button in DOM",
+  "details": {
+    "reason_code": "BUTTON_MISSING",
+    "steps": [
+      "Auditing product handle: garden-floral-fabric-sample"
+    ],
+    "checks": {}
+  },
+  "error": null,
+  "screenshot": "reports/live/sophieallport.com/shopify_cart_consistency_auditor_screenshot.png",
+  "ajax_product_meta": {
+    "status": 200,
+    "final_url": "https://www.sophieallport.com/products/gift-voucher.js",
+    "handle": null
+  },
+  "intercepted_pointer_elements": []
+}

@@ -1,0 +1,33 @@
+{
+  "skill_name": "shopify_shopper",
+  "status": "WARN",
+  "summary": "Could not find a product with an enabled Add to Cart button",
+  "details": {
+    "steps": [
+      "Visited Home Page",
+      "Visited Product Collection"
+    ],
+    "products_tested": 15,
+    "product_urls_found": 15,
+    "cart_evidence": [],
+    "cart_evidence_meta": {
+      "status": "not_attempted",
+      "source": "none",
+      "trigger": null,
+      "attempted_at": null,
+      "captured_at": null,
+      "api_total_quantity": null,
+      "api_line_count": null,
+      "http_status": null,
+      "error_code": null
+    }
+  },
+  "error": null,
+  "screenshot": "reports/live/regalrose.co.uk/shopify_shopper_screenshot.png",
+  "ajax_product_meta": {
+    "status": 200,
+    "final_url": "https://www.regalrose.co.uk/products/hazel-corset-beaded-cuff-black.js",
+    "handle": null
+  },
+  "intercepted_pointer_elements": []
+}

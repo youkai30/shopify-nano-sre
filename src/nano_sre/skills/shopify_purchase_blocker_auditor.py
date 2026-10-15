@@ -667,6 +667,11 @@ class ShopifyPurchaseBlockerAuditor(Skill):
             elif isinstance(opt, str):
                 option_names.append(opt)
 
+        if variant_options and all(
+            str(v).strip().lower() == "default title" for v in variant_options
+        ):
+            return True, "", proven_dom_options
+
         for idx, val in enumerate(variant_options):
             opt_name = option_names[idx] if idx < len(option_names) else f"Option{idx+1}"
             selected = False

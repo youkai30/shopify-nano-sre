@@ -1,0 +1,37 @@
+{
+  "skill_name": "shopify_cart_consistency_auditor",
+  "status": "WARN",
+  "summary": "Could not fetch product JSON from https://hiutdenim.co.uk/products/repair-shipping.js",
+  "details": {
+    "reason_code": "PRODUCT_JSON_UNAVAILABLE",
+    "steps": [
+      "Auditing product handle: repair-shipping"
+    ],
+    "checks": {}
+  },
+  "error": null,
+  "screenshot": "reports/live/hiutdenim.co.uk/shopify_cart_consistency_auditor_screenshot.png",
+  "ajax_product_meta": {
+    "status": null,
+    "final_url": null,
+    "handle": null
+  },
+  "intercepted_pointer_elements": [
+    {
+      "tagName": "DIV",
+      "outerHTML": "<div aria-modal=\"true\" class=\"overlay\" role=\"dialog\"><button type=\"button\" aria-label=\"Close\" class=\"close-outside\"></button><aside class=\"flex flex-col py-4\"><header class=\"pl-4 pr-5\"><h3 class=\"uppercase text-xs font-semibold tracking-widest\">CART</h3><button type=\"button\" class=\"close reset\" aria"
+    },
+    {
+      "tagName": "DIV",
+      "outerHTML": "<div aria-modal=\"true\" class=\"overlay\" role=\"dialog\"><button type=\"button\" aria-label=\"Close\" class=\"close-outside\"></button><aside class=\"flex flex-col py-4\"><header class=\"pl-4 pr-5\"><h3 class=\"uppercase text-xs font-semibold tracking-widest\">SEARCH</h3><button type=\"button\" class=\"close reset\" ar"
+    },
+    {
+      "tagName": "DIV",
+      "outerHTML": "<div aria-modal=\"true\" class=\"overlay\" role=\"dialog\"><button type=\"button\" aria-label=\"Close\" class=\"close-outside\"></button><aside class=\"flex flex-col py-4\"><header class=\"pl-4 pr-5\"><h3 class=\"uppercase text-xs font-semibold tracking-widest\">MENU</h3><button type=\"button\" class=\"close reset\" aria"
+    },
+    {
+      "tagName": "DIV",
+      "outerHTML": "<div role=\"dialog\" aria-modal=\"true\" aria-label=\"Join the Hiut List\" class=\"needsclick  kl-private-reset-css-Xuajs1\" style=\"display: flex; z-index: 90000; position: fixed; left: 0px; top: 0px; width: 100%; height: 100%; justify-content: center; align-items: center; overflow: clip auto; background-co"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "skill_name": "shopify_variant_auditor",
+  "status": "WARN",
+  "summary": "Could not establish main product form binding on PDP",
+  "details": {
+    "steps": [
+      "Auditing product handle: garden-floral-fabric-sample"
+    ]
+  },
+  "error": null,
+  "screenshot": "reports/live/sophieallport.com/shopify_variant_auditor_screenshot.png",
+  "ajax_product_meta": {
+    "status": 200,
+    "final_url": "https://www.sophieallport.com/products/gift-voucher.js",
+    "handle": null
+  },
+  "intercepted_pointer_elements": []
+}

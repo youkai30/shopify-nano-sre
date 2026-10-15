@@ -1,0 +1,88 @@
+{
+  "skill_name": "shopify_mobile_purchase_blocker_auditor",
+  "status": "WARN",
+  "summary": "Main product form or Add to Cart button binding unconfirmed on mobile",
+  "details": {
+    "reason_code": "BUTTON_MISSING_OR_DISABLED",
+    "blocker_identity": {
+      "reason_code": "BUTTON_MISSING_OR_DISABLED",
+      "product_handle": "garden-floral-fabric-sample",
+      "affected_control": "add_to_cart_button",
+      "fault_descriptor": "unconfirmed_binding"
+    },
+    "steps": [
+      "Auditing product handle on mobile (390x844): garden-floral-fabric-sample",
+      "Successfully selected required variant options on mobile",
+      "Could not establish clear Add to Cart button binding inside main product form or sticky CTA"
+    ],
+    "proven_purchase_conditions": {
+      "product_handle": "garden-floral-fabric-sample",
+      "target_variant_id": 57645311590773,
+      "proven_dom_options": {},
+      "required_consents_satisfied": false
+    },
+    "expected": "Visible enabled Add to Cart button bound to product form on mobile",
+    "observed": "Button binding unconfirmed",
+    "timestamp": "2026-10-15T21:24:16.027767+00:00",
+    "reproduction_steps": [
+      "Navigate to https://www.sophieallport.com/products/garden-floral-fabric-sample",
+      "Inspect product form and ATC button"
+    ],
+    "redacted_screenshot": null,
+    "network_cart_evidence": {},
+    "mobile_context_config": {
+      "name": "390x844",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+      "is_mobile": true,
+      "has_touch": true,
+      "environment": "Chromium mobile emulation (390x844, touch-enabled)"
+    },
+    "environment": "Chromium mobile emulation",
+    "tested_viewports": [
+      "390x844",
+      "360x800"
+    ],
+    "viewport_results": {
+      "390x844": {
+        "status": "WARN",
+        "summary": "Main product form or Add to Cart button binding unconfirmed on mobile",
+        "reason_code": "BUTTON_MISSING_OR_DISABLED",
+        "blocker_identity": {
+          "reason_code": "BUTTON_MISSING_OR_DISABLED",
+          "product_handle": "garden-floral-fabric-sample",
+          "affected_control": "add_to_cart_button",
+          "fault_descriptor": "unconfirmed_binding"
+        }
+      },
+      "360x800": {
+        "status": "WARN",
+        "summary": "Main product form or Add to Cart button binding unconfirmed on mobile",
+        "reason_code": "BUTTON_MISSING_OR_DISABLED",
+        "blocker_identity": {
+          "reason_code": "BUTTON_MISSING_OR_DISABLED",
+          "product_handle": "garden-floral-fabric-sample",
+          "affected_control": "add_to_cart_button",
+          "fault_descriptor": "unconfirmed_binding"
+        }
+      }
+    },
+    "desktop_comparison": {
+      "classification": "NOT_NEEDED_FOR_WARN"
+    },
+    "reproduction_summary": {
+      "classification": "NOT_NEEDED"
+    }
+  },
+  "error": null,
+  "screenshot": "reports/live/sophieallport.com/shopify_mobile_purchase_blocker_auditor_screenshot.png",
+  "ajax_product_meta": {
+    "status": 200,
+    "final_url": "https://www.sophieallport.com/products/gift-voucher.js",
+    "handle": null
+  },
+  "intercepted_pointer_elements": []
+}

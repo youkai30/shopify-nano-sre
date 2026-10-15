@@ -1,0 +1,72 @@
+Starting audit for store: https://regalrose.co.uk/
+Navigating to https://regalrose.co.uk/ with wait_until='domcontentloaded'
+Executing skill: shopify_shopper
+Captured /products/<handle>.js: HTTP 200 at https://www.regalrose.co.uk/products/regalrose-12-day-jewellery-advent-calendar-silver.js
+Captured /products/<handle>.js: HTTP 200 at https://www.regalrose.co.uk/products/regalrose-12-day-jewellery-advent-calendar-silver.js
+Captured /products/<handle>.js: HTTP 200 at https://www.regalrose.co.uk/products/regalrose-12-day-jewellery-advent-calendar-gold.js
+Captured /products/<handle>.js: HTTP 200 at https://www.regalrose.co.uk/products/regalrose-12-day-jewellery-advent-calendar-gold.js
+Captured /products/<handle>.js: HTTP 200 at https://www.regalrose.co.uk/products/marion-remembrance-iron-gate-ring-silver.js
+Captured /products/<handle>.js: HTTP 200 at https://www.regalrose.co.uk/products/marion-remembrance-iron-gate-ring-silver.js
+Captured /products/<handle>.js: HTTP 200 at https://www.regalrose.co.uk/products/marion-remembrance-iron-gate-ring-gold.js
+Captured /products/<handle>.js: HTTP 200 at https://www.regalrose.co.uk/products/marion-remembrance-iron-gate-ring-gold.js
+Captured /products/<handle>.js: HTTP 200 at https://www.regalrose.co.uk/products/thora-tiny-ivy-stud-earrings-silver.js
+Captured /products/<handle>.js: HTTP 200 at https://www.regalrose.co.uk/products/thora-tiny-ivy-stud-earrings-silver.js
+Captured /products/<handle>.js: HTTP 200 at https://www.regalrose.co.uk/products/thora-tiny-ivy-stud-earrings-gold.js
+Captured /products/<handle>.js: HTTP 200 at https://www.regalrose.co.uk/products/thora-tiny-ivy-stud-earrings-gold.js
+Captured /products/<handle>.js: HTTP 200 at https://www.regalrose.co.uk/products/awe-intuition-crystal-ball-necklace-silver.js
+Captured /products/<handle>.js: HTTP 200 at https://www.regalrose.co.uk/products/awe-intuition-crystal-ball-necklace-silver.js
+Captured /products/<handle>.js: HTTP 200 at https://www.regalrose.co.uk/products/awe-intuition-crystal-ball-necklace-gold.js
+Captured /products/<handle>.js: HTTP 200 at https://www.regalrose.co.uk/products/awe-intuition-crystal-ball-necklace-gold.js
+Captured /products/<handle>.js: HTTP 200 at https://www.regalrose.co.uk/products/heresy-witches-boot-pearl-stud-earring-silver.js
+Captured /products/<handle>.js: HTTP 200 at https://www.regalrose.co.uk/products/heresy-witches-boot-pearl-stud-earring-silver.js
+Captured /products/<handle>.js: HTTP 200 at https://www.regalrose.co.uk/products/heresy-witches-boot-pearl-stud-earring-gold.js
+Captured /products/<handle>.js: HTTP 200 at https://www.regalrose.co.uk/products/heresy-witches-boot-pearl-necklace-silver.js
+Captured /products/<handle>.js: HTTP 200 at https://www.regalrose.co.uk/products/heresy-witches-boot-pearl-necklace-silver.js
+Captured /products/<handle>.js: HTTP 200 at https://www.regalrose.co.uk/products/heresy-witches-boot-pearl-necklace-gold.js
+Captured /products/<handle>.js: HTTP 200 at https://www.regalrose.co.uk/products/heresy-witches-boot-pearl-necklace-gold.js
+Captured /products/<handle>.js: HTTP 200 at https://www.regalrose.co.uk/products/awe-intuition-crystal-ball-hoop-earrings-silver.js
+Captured /products/<handle>.js: HTTP 200 at https://www.regalrose.co.uk/products/awe-intuition-crystal-ball-hoop-earrings-silver.js
+Captured /products/<handle>.js: HTTP 200 at https://www.regalrose.co.uk/products/awe-intuition-crystal-ball-hoop-earrings-gold.js
+Captured /products/<handle>.js: HTTP 200 at https://www.regalrose.co.uk/products/awe-intuition-crystal-ball-hoop-earrings-gold.js
+Captured /products/<handle>.js: HTTP 200 at https://www.regalrose.co.uk/products/hazel-corset-beaded-cuff-black.js
+Captured /products/<handle>.js: HTTP 200 at https://www.regalrose.co.uk/products/hazel-corset-beaded-cuff-black.js
+Finished skill shopify_shopper: WARN - Could not find a product with an enabled Add to Cart button
+Executing skill: shopify_variant_auditor
+Captured /products/<handle>.js: HTTP 200 at https://www.regalrose.co.uk/products/hazel-corset-beaded-cuff-black.js
+Finished skill shopify_variant_auditor: WARN - Variant audit completed with warnings: variant_identity, variant_price, variant_image
+Executing skill: shopify_purchase_blocker_auditor
+Finished skill shopify_purchase_blocker_auditor: WARN - Option selection issue: Option selection in DOM could not be proven for all options ({})
+Executing skill: shopify_mobile_purchase_blocker_auditor
+Finished skill shopify_mobile_purchase_blocker_auditor: WARN - Mobile option selection issue: Option selection in DOM could not be proven for all options ({})
+Executing skill: shopify_cart_consistency_auditor
+Finished skill shopify_cart_consistency_auditor: WARN - Clicking Add to Cart button failed: Locator.click: Timeout 10000ms exceeded.
+Call log:
+  - waiting for locator("form[action*=\"/cart/add\"], form.prd-ProductOffers_Form, [data-type=\"add-to-cart-form\"]").first.locator("button[type=\"submit\"]:has-text(\"add\"):visible:not([disabled])").first
+    - locator resolved to <button type="submit" class="button w-full klatc">Add to basket</button>
+  - attempting click action
+    2 × waiting for element to be visible, enabled and stable
+      - element is visible, enabled and stable
+      - scrolling into view if needed
+      - done scrolling
+      - <div role="dialog" aria-modal="true" aria-label="POPUP Form" data-kl-scroll-locking-modal="true" class="needsclick  kl-private-reset-css-Xuajs1">…</div> from <div>…</div> subtree intercepts pointer events
+    - retrying click action
+    - waiting 20ms
+    2 × waiting for element to be visible, enabled and stable
+      - element is visible, enabled and stable
+      - scrolling into view if needed
+      - done scrolling
+      - <div role="dialog" aria-modal="true" aria-label="POPUP Form" data-kl-scroll-locking-modal="true" class="needsclick  kl-private-reset-css-Xuajs1">…</div> from <div>…</div> subtree intercepts pointer events
+    - retrying click action
+      - waiting 100ms
+    16 × waiting for element to be visible, enabled and stable
+       - element is visible, enabled and stable
+       - scrolling into view if needed
+       - done scrolling
+       - <div role="dialog" aria-modal="true" aria-label="POPUP Form" data-kl-scroll-locking-modal="true" class="needsclick  kl-private-reset-css-Xuajs1">…</div> from <div>…</div> subtree intercepts pointer events
+     - retrying click action
+       - waiting 500ms
+
+Executing skill: shopify_checkout_blocker_auditor
+Finished skill shopify_checkout_blocker_auditor: WARN - Target URL is outside local sandbox origin; checkout audit skipped for safety
+Executing skill: shopify_search_discovery_auditor
+Finished skill shopify_search_discovery_auditor: WARN - Search query missing; search audit skipped with WARN

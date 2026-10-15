@@ -1,0 +1,30 @@
+{
+  "skill_name": "shopify_checkout_blocker_auditor",
+  "status": "WARN",
+  "summary": "Target URL is outside local sandbox origin; checkout audit skipped for safety",
+  "details": {
+    "reason_code": "NON_LOCAL_SCOPE_BLOCKED",
+    "steps": [
+      "Local origin scope check failed"
+    ],
+    "limitation_disclaimer": "Local mock checkout audit verifies DOM, network transitions, and local fixture steps up to payment step access, but does NOT prove compatibility with live Shopify checkout or payment gateways.",
+    "checks": {}
+  },
+  "error": null,
+  "screenshot": "reports/live/mustardmade.com/shopify_checkout_blocker_auditor_screenshot.png",
+  "ajax_product_meta": {
+    "status": null,
+    "final_url": null,
+    "handle": null
+  },
+  "intercepted_pointer_elements": [
+    {
+      "tagName": "BODY",
+      "outerHTML": "<body id=\"the-flutes\" class=\"template-product template-product--basic-product grid-classic aos-initialized has-header-sticky has-header-transparent has-first-section-overlay-header osf-theme-live-mustard-template---au is-loaded swym-ready swym-[live]mustardtemplate-au-null swym-[live]mustardtemplate"
+    },
+    {
+      "tagName": "DIV",
+      "outerHTML": "<div id=\"shopify-section-template--16399740338261__main\" class=\"shopify-section section-overlay-header\"><!-- /sections/product.liquid --><style data-shopify=\"\">#Product--template--16399740338261__main {\n    --PT: 180px;\n    --PB: 30px;\n\n    --swatch-size: var(--swatch-size-product);\n\n    @media(max-"
+    }
+  ]
+}

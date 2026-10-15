@@ -1,0 +1,49 @@
+{
+  "skill_name": "shopify_search_discovery_auditor",
+  "status": "WARN",
+  "summary": "Search query missing; search audit skipped with WARN",
+  "details": {
+    "reason_code": "MISSING_SEARCH_QUERY",
+    "steps": [],
+    "limitation_disclaimer": "Local mock search audit verifies DOM interactions, query handling, and discovery link navigation on local fixtures, but does NOT prove performance or compatibility with live Shopify search engines or external discovery apps. Local fixture failures demonstrate technical logic state only and do NOT represent actual customer leads or monetary loss.",
+    "checks": {
+      "catalog_fixture": {
+        "status": "WARN",
+        "reason_code": "MISSING_SEARCH_QUERY",
+        "summary": "No search query specified in context or fixture"
+      },
+      "product_eligibility": {
+        "status": "WARN",
+        "reason_code": "PRODUCT_ELIGIBILITY_UNKNOWN",
+        "summary": "No catalog fixture provided; target product eligibility is UNKNOWN/WARN",
+        "expected": "Explicit catalog fixture metadata",
+        "observed": "Catalog fixture absent"
+      }
+    }
+  },
+  "error": null,
+  "screenshot": "reports/live/hiutdenim.co.uk/shopify_search_discovery_auditor_screenshot.png",
+  "ajax_product_meta": {
+    "status": null,
+    "final_url": null,
+    "handle": null
+  },
+  "intercepted_pointer_elements": [
+    {
+      "tagName": "DIV",
+      "outerHTML": "<div aria-modal=\"true\" class=\"overlay\" role=\"dialog\"><button type=\"button\" aria-label=\"Close\" class=\"close-outside\"></button><aside class=\"flex flex-col py-4\"><header class=\"pl-4 pr-5\"><h3 class=\"uppercase text-xs font-semibold tracking-widest\">CART</h3><button type=\"button\" class=\"close reset\" aria"
+    },
+    {
+      "tagName": "DIV",
+      "outerHTML": "<div aria-modal=\"true\" class=\"overlay\" role=\"dialog\"><button type=\"button\" aria-label=\"Close\" class=\"close-outside\"></button><aside class=\"flex flex-col py-4\"><header class=\"pl-4 pr-5\"><h3 class=\"uppercase text-xs font-semibold tracking-widest\">SEARCH</h3><button type=\"button\" class=\"close reset\" ar"
+    },
+    {
+      "tagName": "DIV",
+      "outerHTML": "<div aria-modal=\"true\" class=\"overlay\" role=\"dialog\"><button type=\"button\" aria-label=\"Close\" class=\"close-outside\"></button><aside class=\"flex flex-col py-4\"><header class=\"pl-4 pr-5\"><h3 class=\"uppercase text-xs font-semibold tracking-widest\">MENU</h3><button type=\"button\" class=\"close reset\" aria"
+    },
+    {
+      "tagName": "DIV",
+      "outerHTML": "<div role=\"dialog\" aria-modal=\"true\" aria-label=\"Join the Hiut List\" class=\"needsclick  kl-private-reset-css-Xuajs1\" style=\"display: flex; z-index: 90000; position: fixed; left: 0px; top: 0px; width: 100%; height: 100%; justify-content: center; align-items: center; overflow: clip auto; background-co"
+    }
+  ]
+}

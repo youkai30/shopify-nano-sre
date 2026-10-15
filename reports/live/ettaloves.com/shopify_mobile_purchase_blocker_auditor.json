@@ -1,0 +1,126 @@
+{
+  "skill_name": "shopify_mobile_purchase_blocker_auditor",
+  "status": "FAIL",
+  "summary": "Add to Cart button blocked on mobile by un-dismissable overlay or sticky element (xgeo-widget#.) (Shared issue: reproduced on desktop as well)",
+  "details": {
+    "reason_code": "BUTTON_BLOCKED_BY_OVERLAY",
+    "blocker_identity": {
+      "reason_code": "BUTTON_BLOCKED_BY_OVERLAY",
+      "product_handle": "bibs-x-etta-loves-newborn-gift-set",
+      "target_variant_id": 63857429152121,
+      "proven_dom_options": {},
+      "affected_control": "add_to_cart_button",
+      "fault_descriptor": "xgeo-widget#."
+    },
+    "steps": [
+      "Auditing product handle on mobile (390x844): bibs-x-etta-loves-newborn-gift-set",
+      "Successfully selected required variant options on mobile",
+      "Scrolled to Add to Cart button on mobile",
+      "Add to Cart button blocked by overlay: xgeo-widget#."
+    ],
+    "proven_purchase_conditions": {
+      "product_handle": "bibs-x-etta-loves-newborn-gift-set",
+      "target_variant_id": 63857429152121,
+      "proven_dom_options": {},
+      "required_consents_satisfied": false
+    },
+    "expected": "Add to Cart button directly clickable/tappable without overlay interception",
+    "observed": "Pointer events blocked by overlay element (xgeo-widget#.)",
+    "timestamp": "2026-10-15T21:34:31.460591+00:00",
+    "reproduction_steps": [
+      "Navigate to https://ettaloves.com/products/bibs-x-etta-loves-newborn-gift-set",
+      "Attempt to tap Add to Cart button on mobile"
+    ],
+    "redacted_screenshot": "reports/screenshots/mobile_blocker_audit_button_blocked_overlay_1792100070.png",
+    "network_cart_evidence": {},
+    "mobile_context_config": {
+      "name": "390x844",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+      "is_mobile": true,
+      "has_touch": true,
+      "environment": "Chromium mobile emulation (390x844, touch-enabled)"
+    },
+    "environment": "Chromium mobile emulation (390x844, touch-enabled)",
+    "desktop_comparison": {
+      "classification": "SHARED",
+      "desktop_status": "FAIL",
+      "desktop_blocker_identity": {
+        "reason_code": "BUTTON_BLOCKED_BY_OVERLAY",
+        "product_handle": "bibs-x-etta-loves-newborn-gift-set",
+        "target_variant_id": 63857429152121,
+        "proven_dom_options": {},
+        "affected_control": "add_to_cart_button",
+        "fault_descriptor": "xgeo-widget#."
+      },
+      "desktop_summary": "Add to Cart button blocked on mobile by un-dismissable overlay or sticky element (xgeo-widget#.)",
+      "desktop_observed": "Pointer events blocked by overlay element (xgeo-widget#.)",
+      "desktop_expected": "Add to Cart button directly clickable/tappable without overlay interception"
+    },
+    "reproduction_summary": {
+      "reproduction_confirmed": true,
+      "target_viewport": "390x844",
+      "run_1_status": "FAIL",
+      "run_1_blocker_identity": {
+        "reason_code": "BUTTON_BLOCKED_BY_OVERLAY",
+        "product_handle": "bibs-x-etta-loves-newborn-gift-set",
+        "target_variant_id": 63857429152121,
+        "proven_dom_options": {},
+        "affected_control": "add_to_cart_button",
+        "fault_descriptor": "xgeo-widget#."
+      },
+      "run_2_status": "FAIL",
+      "run_2_blocker_identity": {
+        "reason_code": "BUTTON_BLOCKED_BY_OVERLAY",
+        "product_handle": "bibs-x-etta-loves-newborn-gift-set",
+        "target_variant_id": 63857429152121,
+        "proven_dom_options": {},
+        "affected_control": "add_to_cart_button",
+        "fault_descriptor": "xgeo-widget#."
+      }
+    },
+    "tested_viewports": [
+      "390x844",
+      "360x800"
+    ],
+    "viewport_results": {
+      "390x844": {
+        "status": "FAIL",
+        "summary": "Add to Cart button blocked on mobile by un-dismissable overlay or sticky element (xgeo-widget#.)",
+        "reason_code": "BUTTON_BLOCKED_BY_OVERLAY",
+        "blocker_identity": {
+          "reason_code": "BUTTON_BLOCKED_BY_OVERLAY",
+          "product_handle": "bibs-x-etta-loves-newborn-gift-set",
+          "target_variant_id": 63857429152121,
+          "proven_dom_options": {},
+          "affected_control": "add_to_cart_button",
+          "fault_descriptor": "xgeo-widget#."
+        }
+      },
+      "360x800": {
+        "status": "FAIL",
+        "summary": "Add to Cart button blocked on mobile by un-dismissable overlay or sticky element (xgeo-widget#.)",
+        "reason_code": "BUTTON_BLOCKED_BY_OVERLAY",
+        "blocker_identity": {
+          "reason_code": "BUTTON_BLOCKED_BY_OVERLAY",
+          "product_handle": "bibs-x-etta-loves-newborn-gift-set",
+          "target_variant_id": 63857429152121,
+          "proven_dom_options": {},
+          "affected_control": "add_to_cart_button",
+          "fault_descriptor": "xgeo-widget#."
+        }
+      }
+    }
+  },
+  "error": null,
+  "screenshot": "reports/live/ettaloves.com/shopify_mobile_purchase_blocker_auditor_screenshot.png",
+  "ajax_product_meta": {
+    "status": null,
+    "final_url": null,
+    "handle": null
+  },
+  "intercepted_pointer_elements": []
+}

@@ -1,0 +1,25 @@
+{
+  "skill_name": "shopify_cart_consistency_auditor",
+  "status": "WARN",
+  "summary": "Could not locate Add to Cart button in DOM",
+  "details": {
+    "reason_code": "BUTTON_MISSING",
+    "steps": [
+      "Auditing product handle: custom-gift-box"
+    ],
+    "checks": {}
+  },
+  "error": null,
+  "screenshot": "reports/live/sauceshop.co/shopify_cart_consistency_auditor_screenshot.png",
+  "ajax_product_meta": {
+    "status": null,
+    "final_url": null,
+    "handle": null
+  },
+  "intercepted_pointer_elements": [
+    {
+      "tagName": "DIV",
+      "outerHTML": "<div class=\"build-a-bundle__info-container fixed top-full desktop:top-0 bottom-0 left-0 right-0 desktop:relative desktop:block desktop:col-span-4 z-modal desktop:z-30 flex items-end w-full desktop:-mt-30\">\n            <div class=\"build-a-bundle__info sticky top-28 desktop:top-36 left-0 right-0 deskt"
+    }
+  ]
+}
