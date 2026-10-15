@@ -108,7 +108,7 @@ async def test_collector_uses_locale_root_once_and_disposes_response():
     assert len(page.request.calls) == 1
     url, options = page.request.calls[0]
     assert url == "https://shop.example/fr/cart.js"
-    assert options == {"timeout": 10000, "max_redirects": 0}
+    assert options == {"timeout": 2000, "max_redirects": 0}
     assert response.disposed
     assert meta["status"] == "nonempty"
     assert meta["api_total_quantity"] == 5

@@ -399,6 +399,10 @@ class ShopifyShopper(Skill):
                     },
                 )
 
+            # Extract target product info strictly from the form owning the clicked ATC button
+            target_info = await _extract_target_product_info(page, atc_button, selected_product_url or product_url)
+            before_lines, before_total, before_status, _ = await _fetch_cart_snapshot(page, timeout=2000)
+
             # 4. Add to Cart
             logger.info(
                 "Clicking Add to Cart for product: %s",
@@ -406,67 +410,92 @@ class ShopifyShopper(Skill):
             )
 
             await atc_button.click(timeout=15000)
-
-            # Allow cart UI / network state to update.
-            await asyncio.sleep(3)
-
             steps.append("Clicked Add to Cart")
 
-            # 5. Keep journey verification and evidence acquisition separate.
-            await asyncio.sleep(2)
-            cart_dialog = page.locator('[role="dialog"][aria-modal="true"]:visible').first
-            if await cart_dialog.count() > 0:
-                steps.append("Cart drawer detected")
-                item_count = await _drawer_item_count(page, cart_dialog)
-                await cart_collector.collect(page, "auto_open_drawer")
-                if item_count is not None and item_count > 0:
-                    cart_verified = True
+            # 5. Verify cart addition against baseline with strict overall 5.0s timeout
+            cart_verified = False
+            after_lines = []
+            after_total = None
+            after_meta = _empty_cart_meta()
+            trigger = "api_only_fallback"
 
-            if not cart_verified and not cart_collector.attempted:
-                open_cart = page.locator(
-                    'button[aria-label*="cart" i]:visible, '
-                    'a[aria-label*="cart" i]:visible, '
-                    'button[aria-label*="Open cart" i]:visible'
-                ).first
-                if await open_cart.count() > 0:
-                    try:
-                        await open_cart.click(timeout=10000)
-                        await asyncio.sleep(2)
-                        cart_dialog = page.locator(
-                            '[role="dialog"][aria-modal="true"]:visible'
-                        ).first
-                        if await cart_dialog.count() > 0:
-                            steps.append("Opened cart drawer")
-                            item_count = await _drawer_item_count(page, cart_dialog)
-                            await cart_collector.collect(page, "shopper_opened_drawer")
-                            if item_count is not None and item_count > 0:
-                                cart_verified = True
-                    except Exception as open_cart_error:
-                        logger.debug("Could not open cart drawer: %s", type(open_cart_error).__name__)
+            async def _poll_cart():
+                nonlocal trigger, cart_verified, after_lines, after_total, after_meta
+                start_time = asyncio.get_event_loop().time()
+                while True:
+                    now = asyncio.get_event_loop().time()
+                    elapsed = now - start_time
+                    if elapsed >= 5.0:
+                        break
 
-            # If cart drawer was detected automatically or opened, but item_count couldn't be parsed from drawer text,
-            # try fallback reading from opener aria-label or drawer aria-label before giving up.
-            if not cart_verified and cart_dialog is not None and await cart_dialog.count() > 0:
-                item_count = await _drawer_item_count(page, cart_dialog)
-                if item_count is not None and item_count > 0:
-                    cart_verified = True
-                    if not cart_collector.attempted:
-                        await cart_collector.collect(page, "auto_open_drawer")
+                    remaining_sec = 5.0 - elapsed
 
-            # 5C is a single API-only fallback if no drawer path attempted it.
-            if not cart_collector.attempted:
-                await cart_collector.collect(page, "api_only_fallback")
-            if (not cart_verified and cart_evidence_meta["status"] in ("empty", "nonempty")
-                    and cart_evidence_meta.get("trigger") == "api_only_fallback"):
-                api_count = cart_evidence_meta.get("api_total_quantity")
-                if api_count is not None:
-                    item_count = api_count
-                    if api_count > 0:
+                    if trigger == "api_only_fallback" and remaining_sec > 0.2:
+                        try:
+                            cart_dialog = page.locator('[role="dialog"][aria-modal="true"]:visible').first
+                            if await cart_dialog.count() > 0:
+                                if "Cart drawer detected" not in steps:
+                                    steps.append("Cart drawer detected")
+                                trigger = "auto_open_drawer"
+                            else:
+                                open_cart = page.locator(
+                                    'button[aria-label*="cart" i]:visible, '
+                                    'a[aria-label*="cart" i]:visible, '
+                                    'button[aria-label*="Open cart" i]:visible'
+                                ).first
+                                if await open_cart.count() > 0:
+                                    await open_cart.click(timeout=min(1000, int(remaining_sec * 1000)))
+                                    cart_dialog = page.locator(
+                                        '[role="dialog"][aria-modal="true"]:visible'
+                                    ).first
+                                    if await cart_dialog.count() > 0:
+                                        if "Opened cart drawer" not in steps:
+                                            steps.append("Opened cart drawer")
+                                        trigger = "shopper_opened_drawer"
+                        except Exception:
+                            pass
+
+                    now = asyncio.get_event_loop().time()
+                    elapsed = now - start_time
+                    if elapsed >= 5.0:
+                        break
+
+                    remaining_sec = 5.0 - elapsed
+                    fetch_timeout_ms = max(50, int(min(2.0, remaining_sec) * 1000))
+                    cur_lines, cur_total, cur_status, cur_meta = await _fetch_cart_snapshot(
+                        page, timeout=fetch_timeout_ms
+                    )
+
+                    cur_meta["trigger"] = trigger
+                    after_lines, after_total, after_status, after_meta = cur_lines, cur_total, cur_status, cur_meta
+
+                    if _verify_cart_addition(before_lines, before_status, after_lines, after_status, target_info):
                         cart_verified = True
-                        if "Cart verified through cart.js" not in steps:
-                            steps.append(f"Cart verified through cart.js: {api_count} item(s)")
+                        break
 
-            # Neither UI nor API confirmed the cart.
+                    now_after = asyncio.get_event_loop().time()
+                    if now_after - start_time >= 5.0:
+                        break
+
+                    sleep_duration = min(0.5, max(0.01, 5.0 - (now_after - start_time)))
+                    if sleep_duration <= 0.02:
+                        break
+                    await asyncio.sleep(sleep_duration)
+
+            try:
+                await asyncio.wait_for(_poll_cart(), timeout=5.2)
+            except (TimeoutError, asyncio.TimeoutError, Exception) as poll_err:
+                logger.debug("Cart polling ended: %s", type(poll_err).__name__)
+
+            cart_collector.attempted = True
+            cart_evidence.clear()
+            cart_evidence.extend(after_lines)
+            cart_evidence_meta.clear()
+            cart_evidence_meta.update(after_meta)
+            after_status = after_meta.get("status", "failed")
+            item_count = after_total if after_status != "failed" else None
+
+            # Neither UI nor API confirmed valid target addition to cart.
             if not cart_verified or item_count is None or item_count <= 0:
                 return SkillResult(
                     skill_name=self.name(),
@@ -488,8 +517,23 @@ class ShopifyShopper(Skill):
                 f"Cart verified: {item_count} item(s)"
             )
 
-            # 6. Find visible checkout button.
-            checkout_button = page.locator(
+            # If isolated cart evidence check was requested, return PASS directly without checkout navigation.
+            if context.get("cart_evidence_only"):
+                return SkillResult(
+                    skill_name=self.name(),
+                    status="PASS",
+                    summary="Cart addition verified successfully via evidence",
+                    details={
+                        "steps": steps,
+                        "cart_item_count": item_count,
+                        "selected_product": selected_product_url,
+                        "cart_evidence": cart_evidence,
+                        "cart_evidence_meta": cart_evidence_meta,
+                    },
+                )
+
+            # 6. Find visible checkout button in cart drawer or page.
+            checkout_selectors = (
                 'button:has-text("CHECKOUT"):visible, '
                 'a:has-text("CHECKOUT"):visible, '
                 'button:has-text("Check out"):visible, '
@@ -497,8 +541,19 @@ class ShopifyShopper(Skill):
                 'input[name="checkout"]:visible, '
                 'button[name="checkout"]:visible, '
                 'button[type="submit"]:has-text("Check Out"):visible, '
-                'input[type="submit"][value*="Check Out"]:visible'
-            ).first
+                'input[type="submit"][value*="Check Out"]:visible, '
+                'a[href*="/checkouts"]:visible'
+            )
+
+            checkout_button = page.locator(checkout_selectors).first
+
+            # Retry up to 3 seconds for dynamically injected checkout buttons in drawer
+            if await checkout_button.count() == 0:
+                for _ in range(10):
+                    await asyncio.sleep(0.3)
+                    checkout_button = page.locator(checkout_selectors).first
+                    if await checkout_button.count() > 0:
+                        break
 
             # Traditional /cart fallback.
             if await checkout_button.count() == 0:
@@ -514,14 +569,7 @@ class ShopifyShopper(Skill):
                     await asyncio.sleep(2)
                     steps.append("Visited Cart Page")
 
-                    checkout_button = page.locator(
-                        'input[name="checkout"]:visible, '
-                        'button[name="checkout"]:visible, '
-                        'button[type="submit"]:has-text("Check Out"):visible, '
-                        'input[type="submit"][value*="Check Out"]:visible, '
-                        'button:has-text("CHECKOUT"):visible, '
-                        'a:has-text("CHECKOUT"):visible'
-                    ).first
+                    checkout_button = page.locator(checkout_selectors).first
 
                 except Exception as cart_page_error:
                     logger.debug(
@@ -553,7 +601,11 @@ class ShopifyShopper(Skill):
                 logger.debug("Checkout button click failed: %s", type(checkout_click_error).__name__)
                 raise checkout_click_error
 
-            await asyncio.sleep(5)
+            # Wait briefly for navigation to commit
+            try:
+                await page.wait_for_url(lambda u: "/checkout" in u.lower(), timeout=5000)
+            except Exception:
+                await asyncio.sleep(3)
 
             final_url = page.url
 
@@ -827,6 +879,119 @@ def _validate_cart_payload(data: Any) -> tuple[list[dict[str, Any]], int, int]:
     return lines, total, len(lines)
 
 
+async def _extract_target_product_info(page, atc_button, product_url: str) -> dict[str, Any]:
+    info: dict[str, Any] = {
+        "variant_id": None,
+        "quantity": None,
+    }
+
+    # 1. Resolve the target form strictly associated with the clicked button
+    target_form = None
+    try:
+        if atc_button and await atc_button.count() > 0:
+            # First check HTML5 form attribute ownership (takes precedence over DOM tree nesting)
+            form_id = await atc_button.get_attribute("form")
+            if form_id:
+                form_by_id = page.locator(f'form#{form_id}').first
+                if await form_by_id.count() > 0:
+                    target_form = form_by_id
+
+            if not target_form or await target_form.count() == 0:
+                # Ancestor form in DOM tree
+                ancestor_form = atc_button.locator("xpath=ancestor::form").first
+                if await ancestor_form.count() > 0:
+                    target_form = ancestor_form
+    except Exception:
+        target_form = None
+
+    # 2. If no owning form exists for the clicked button, return unproven info (WARN)
+    if not target_form or await target_form.count() == 0:
+        return info
+
+    # 3. Inspect controls bound strictly to the target form
+    try:
+        id_elem = target_form.locator('select[name="id"], input[name="id"], select[name="id[]"], input[name="id[]"]').first
+        if await id_elem.count() > 0:
+            val = await id_elem.input_value()
+            if val and val.isdigit() and int(val) > 0:
+                info["variant_id"] = int(val)
+
+        qty_elem = target_form.locator('input[name="quantity"]').first
+        if await qty_elem.count() > 0:
+            val = await qty_elem.input_value()
+            if val and val.isdigit() and int(val) > 0:
+                info["quantity"] = int(val)
+        else:
+            # Standard form without quantity input defaults to 1 requested item
+            info["quantity"] = 1
+    except Exception:
+        pass
+
+    return info
+
+
+async def _fetch_cart_snapshot(page, timeout: int = 2000) -> tuple[list[dict[str, Any]], int, str, dict[str, Any]]:
+    meta = _empty_cart_meta()
+    meta["source"] = "api"
+    lines = []
+    total = 0
+    response = None
+    try:
+        root = await _cart_root(page)
+        response = await page.request.get(root + "cart.js", timeout=timeout, max_redirects=0)
+        meta["http_status"] = response.status
+        if not response.ok:
+            meta["error_code"] = f"http_{response.status}"
+            meta["status"] = "failed"
+            return lines, total, "failed", meta
+        lines, total, line_count = _validate_cart_payload(await response.json())
+        meta.update(
+            status="nonempty" if lines else "empty",
+            error_code=None,
+            api_total_quantity=total,
+            api_line_count=line_count,
+            captured_at=_now(),
+        )
+        return lines, total, meta["status"], meta
+    except Exception:
+        meta["error_code"] = "request_error"
+        meta["status"] = "failed"
+        return lines, total, "failed", meta
+    finally:
+        if response is not None:
+            try:
+                await response.dispose()
+            except Exception:
+                pass
+
+
+def _verify_cart_addition(
+    before_lines: list[dict[str, Any]],
+    before_status: str,
+    after_lines: list[dict[str, Any]],
+    after_status: str,
+    target_info: dict[str, Any],
+) -> bool:
+    # Rule 1: Fail closed if baseline read failed or after cart is not nonempty.
+    if before_status == "failed" or after_status != "nonempty":
+        return False
+
+    # Rule 2: Require explicit target variant ID and valid requested quantity.
+    variant_id = target_info.get("variant_id")
+    if not variant_id or not isinstance(variant_id, int) or variant_id <= 0:
+        return False
+
+    req_qty = target_info.get("quantity")
+    if req_qty is None or not isinstance(req_qty, int) or req_qty <= 0:
+        return False
+
+    before_qty = sum(item.get("quantity", 0) for item in before_lines if item.get("variant_id") == variant_id)
+    after_qty = sum(item.get("quantity", 0) for item in after_lines if item.get("variant_id") == variant_id)
+
+    # Rule 3: Target variant quantity in cart must increase strictly by requested quantity.
+    return after_qty == before_qty + req_qty and after_qty > 0
+
+
 class _CartEvidenceCollector:
     def __init__(self, evidence: list[dict[str, Any]], meta: dict[str, Any]):
         self.evidence, self.meta = evidence, meta
@@ -836,26 +1001,9 @@ class _CartEvidenceCollector:
         if self.attempted:
             return
         self.attempted = True
-        self.meta.update(status="failed", source="api", trigger=trigger,
-                         attempted_at=_now(), error_code="request_failed")
-        response = None
-        try:
-            root = await _cart_root(page)
-            response = await page.request.get(root + "cart.js", timeout=10000, max_redirects=0)
-            self.meta["http_status"] = response.status
-            if not response.ok:
-                self.meta["error_code"] = f"http_{response.status}"
-                return
-            lines, total, line_count = _validate_cart_payload(await response.json())
-            self.evidence.extend(lines)
-            self.meta.update(status="nonempty" if lines else "empty", error_code=None,
-                             api_total_quantity=total, api_line_count=line_count, captured_at=_now())
-        except Exception:
-            self.meta["error_code"] = "request_error"
-            logger.debug("Cart evidence collection failed")
-        finally:
-            if response is not None:
-                try:
-                    await response.dispose()
-                except Exception:
-                    pass
+        lines, total, status, meta = await _fetch_cart_snapshot(page)
+        meta["trigger"] = trigger
+        meta["attempted_at"] = meta.get("captured_at") or _now()
+        self.meta.update(meta)
+        self.evidence.clear()
+        self.evidence.extend(lines)
