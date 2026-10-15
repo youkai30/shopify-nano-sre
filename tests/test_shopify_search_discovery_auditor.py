@@ -603,6 +603,97 @@ class ComprehensiveMockSearchServer(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(html.encode("utf-8"))
 
+        elif path.startswith("/products/roka-custom-card-pass"):
+            html = """<!doctype html><html><body>
+            <h1>Roka Custom Web Component Search Demo</h1>
+            <script data-catalog-fixture type="application/json">
+            {
+              "product_id": "9030",
+              "handle": "canfield-roll-top-backpack",
+              "title": "Canfield Backpack",
+              "published_status": true,
+              "eligible_for_search": true,
+              "expected_query": "bag"
+            }
+            </script>
+            <form action="/search" method="get">
+              <input type="search" name="q" placeholder="Search products...">
+              <button type="submit">Search</button>
+            </form>
+            </body></html>"""
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.end_headers()
+            self.wfile.write(html.encode("utf-8"))
+
+        elif path.startswith("/products/empty-drawer-products-warn"):
+            html = """<!doctype html><html><body>
+            <h1>Empty Search Drawer Products Demo</h1>
+            <script data-catalog-fixture type="application/json">
+            {
+              "product_id": "9031",
+              "handle": "some-suggested-item",
+              "title": "Some Suggested Item",
+              "published_status": true,
+              "eligible_for_search": true,
+              "expected_query": "bag"
+            }
+            </script>
+            <form action="/search-empty-drawer" method="get">
+              <input type="search" name="q" placeholder="Search products...">
+              <button type="submit">Search</button>
+            </form>
+            </body></html>"""
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.end_headers()
+            self.wfile.write(html.encode("utf-8"))
+
+        elif path.startswith("/search-empty-drawer"):
+            html = """<!doctype html><html><body>
+            <div class="search-drawer">
+              <div class="search-drawer__suggestions">
+                <p>Trending Search Suggestions</p>
+                <a href="/products/some-suggested-item">Suggested Item Link</a>
+              </div>
+              <div class="search-drawer__products" role="list">
+                <!-- Empty product results container -->
+              </div>
+            </div>
+            </body></html>"""
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.end_headers()
+            self.wfile.write(html.encode("utf-8"))
+
+        elif path.startswith("/search") and "q=bag" in path:
+            html = """<!doctype html><html><body>
+            <h1>Search Drawer Products</h1>
+            <div class="search-drawer__products" role="list">
+              <div class="search-drawer__product" role="listitem">
+                <product-card class="product-card">
+                  <div class="product-card__content">
+                    <a class="product-card__overlay-link" href="/products/canfield-roll-top-backpack">Canfield Backpack</a>
+                  </div>
+                </product-card>
+              </div>
+            </div>
+            </body></html>"""
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.end_headers()
+            self.wfile.write(html.encode("utf-8"))
+
+        elif path.startswith("/products/canfield-roll-top-backpack"):
+            html = """<!doctype html><html><body>
+            <h1>Canfield Backpack PDP</h1>
+            <p>Product ID: 9030</p>
+            </body></html>"""
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.end_headers()
+            self.wfile.write(html.encode("utf-8"))
+
         elif path.startswith("/products/differing-fault-warn"):
             ComprehensiveMockSearchServer.differing_count[0] += 1
             if ComprehensiveMockSearchServer.differing_count[0] == 1:
@@ -993,6 +1084,45 @@ async def test_handle_substring_board_other_fail(mock_server):
 
         assert result.status == "FAIL"
         assert result.details["reason_code"] == "WRONG_PRODUCT_DESTINATION"
+        await browser.close()
+
+
+@pytest.mark.asyncio
+async def test_roka_custom_product_card_container_pass(mock_server):
+    """Roka London custom web component <product-card> and .search-drawer__products container MUST pass UI search execution."""
+    url = f"{mock_server}/products/roka-custom-card-pass"
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        ctx = await browser.new_context()
+        page = await ctx.new_page()
+        await page.goto(url)
+
+        auditor = ShopifySearchDiscoveryAuditor()
+        # Explicit query in context matching DOM catalog fixture
+        result = await auditor.run({"page": page, "base_url": url, "search_query": "bag"})
+
+        assert result.status == "PASS"
+        assert result.details["checks"]["search_ui_execution"]["status"] == "PASS"
+        assert result.details["checks"]["discovery_links"]["status"] == "PASS"
+        await browser.close()
+
+
+@pytest.mark.asyncio
+async def test_empty_search_drawer_products_returns_warn_not_pass(mock_server):
+    """Search drawer with suggestions and product links outside empty .search-drawer__products MUST return WARN, not PASS."""
+    url = f"{mock_server}/products/empty-drawer-products-warn"
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        ctx = await browser.new_context()
+        page = await ctx.new_page()
+        await page.goto(url)
+
+        auditor = ShopifySearchDiscoveryAuditor()
+        result = await auditor.run({"page": page, "base_url": url, "search_query": "bag"})
+
+        assert result.details["checks"]["search_ui_execution"]["status"] == "WARN"
+        assert result.details["checks"]["search_ui_execution"]["reason_code"] == "SEARCH_RESULTS_UNRESOLVED"
+        assert result.status == "WARN"
         await browser.close()
 
 

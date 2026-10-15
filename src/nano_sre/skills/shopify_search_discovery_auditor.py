@@ -761,6 +761,7 @@ class ShopifySearchDiscoveryAuditor(Skill):
                 '.product-grid',
                 '[class*="product-results"]',
                 '[class*="search-results"]',
+                '.search-drawer__products',
                 '.collection-grid',
             ]
             for sel in selectors:
@@ -788,6 +789,7 @@ class ShopifySearchDiscoveryAuditor(Skill):
                 '.product-grid',
                 '[class*="product-results"]',
                 '[class*="search-results"]',
+                '.search-drawer__products',
                 '.collection-grid',
             ]
             for sel in selectors:
@@ -828,9 +830,20 @@ class ShopifySearchDiscoveryAuditor(Skill):
     async def _find_product_result_link(
         self, page, expected_handle: Optional[str], expected_title: Optional[str]
     ) -> tuple[Optional[Any], Optional[str], Optional[str]]:
-        """Find result product link strictly scoped inside search results container."""
-        results_container = page.locator('#search-results, .search-results, [data-search-results], .product-grid, main, #main, [role="main"], div[class*="grid"]').first
-        search_root = results_container if await results_container.count() > 0 else page
+        """Find result product link strictly scoped inside confirmed search results container. Do not fall back to page."""
+        results_container = page.locator('#search-results, .search-results, [data-search-results], .product-grid, .search-drawer__products').first
+        if await results_container.count() == 0 or not await results_container.is_visible():
+            # Check heading-adjacent container
+            heading = page.locator('h1:has-text("Product Results"), h2:has-text("Product Results"), h3:has-text("Product Results"), h1:has-text("Search Results"), h2:has-text("Search Results"), h3:has-text("Search Results")').first
+            if await heading.count() > 0 and await heading.is_visible():
+                sibling_grid = heading.locator('xpath=following-sibling::div[contains(@class, "grid") or contains(@class, "product")][1]').first
+                if await sibling_grid.count() > 0 and await sibling_grid.is_visible():
+                    results_container = sibling_grid
+
+        if await results_container.count() == 0 or not await results_container.is_visible():
+            return None, "No confirmed search results container found on DOM", "SEARCH_RESULTS_UNRESOLVED"
+
+        search_root = results_container
 
         if expected_handle:
             link = search_root.locator(f'a[href*="/products/{expected_handle}"]:visible').first

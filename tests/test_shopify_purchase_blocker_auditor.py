@@ -38,9 +38,10 @@ async def test_purchase_blocker_healthy_flow_pass():
                 data = {
                     "id": 1,
                     "handle": "item",
-                    "options": [{"name": "Size", "values": ["Small"]}],
+                    "options": [{"name": "Size", "values": ["Small", "Large"]}],
                     "variants": [
-                        {"id": 101, "title": "Small", "price": 1599, "available": True, "options": ["Small"]}
+                        {"id": 101, "title": "Small", "price": 1599, "available": True, "options": ["Small"]},
+                        {"id": 102, "title": "Large", "price": 2500, "available": True, "options": ["Large"]},
                     ],
                 }
                 self.send_response(200)
@@ -56,6 +57,7 @@ async def test_purchase_blocker_healthy_flow_pass():
             elif self.path.startswith("/products/item"):
                 html = """<!doctype html><html><body>
                 <form action="/cart/add" method="post">
+                  <input type="hidden" name="id" value="101">
                   <select name="options[Size]">
                     <option value="Small">Small</option>
                   </select>
@@ -129,6 +131,7 @@ async def test_explicit_http_200_empty_cart_returns_warn():
             elif self.path.startswith("/products/item"):
                 html = """<!doctype html><html><body>
                 <form action="/cart/add" method="post">
+                  <input type="hidden" name="id" value="101">
                   <select name="options[Size]"><option value="Small">Small</option></select>
                   <button type="submit" name="add">Add to Cart</button>
                 </form>
@@ -196,6 +199,7 @@ async def test_explicit_unfulfilled_customization_field_returns_warn():
             elif self.path.startswith("/products/item"):
                 html = """<!doctype html><html><body>
                 <form action="/cart/add" method="post">
+                  <input type="hidden" name="id" value="101">
                   <input type="text" name="properties[EngravingText]" required placeholder="Mandatory Engraving"/>
                   <select name="options[Size]"><option value="Small">Small</option></select>
                   <button type="submit" name="add">Add to Cart</button>
@@ -250,6 +254,7 @@ async def test_explicit_analytics_error_with_http_500_returns_warn():
             elif self.path.startswith("/products/item"):
                 html = """<!doctype html><html><body>
                 <form action="/cart/add" method="post">
+                  <input type="hidden" name="id" value="101">
                   <select name="options[Size]"><option value="Small">Small</option></select>
                   <button type="submit" name="add" onclick="window.gtag('event', 'click');">Add to Cart</button>
                 </form>
@@ -377,9 +382,10 @@ async def test_purchase_blocker_mandatory_option_disabled_fail():
                 data = {
                     "id": 1,
                     "handle": "item",
-                    "options": [{"name": "Size", "values": ["Small"]}],
+                    "options": [{"name": "Size", "values": ["Small", "Large"]}],
                     "variants": [
-                        {"id": 101, "title": "Small", "price": 1599, "available": True, "options": ["Small"]}
+                        {"id": 101, "title": "Small", "price": 1599, "available": True, "options": ["Small"]},
+                        {"id": 102, "title": "Large", "price": 2500, "available": True, "options": ["Large"]},
                     ],
                 }
                 self.send_response(200)
@@ -452,6 +458,7 @@ async def test_purchase_blocker_overlay_blocking_fail():
                 html = """<!doctype html><html><body>
                 <div id="unclearable-overlay" style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999;background:rgba(0,0,0,0.5);">Overlay</div>
                 <form action="/cart/add" method="post">
+                  <input type="hidden" name="id" value="101">
                   <select name="options[Size]">
                     <option value="Small">Small</option>
                   </select>
@@ -515,6 +522,7 @@ async def test_purchase_blocker_dismissable_modal_cleared_pass():
                   <button class="close" onclick="document.getElementById('promo-popup').remove();">Close</button>
                 </div>
                 <form action="/cart/add" method="post">
+                  <input type="hidden" name="id" value="101">
                   <select name="options[Size]">
                     <option value="Small">Small</option>
                   </select>
@@ -590,6 +598,7 @@ async def test_purchase_blocker_offscreen_button_scrolled_pass():
                 html = """<!doctype html><html><body>
                 <div style="height:2000px;">Long page content...</div>
                 <form action="/cart/add" method="post">
+                  <input type="hidden" name="id" value="101">
                   <select name="options[Size]">
                     <option value="Small">Small</option>
                   </select>
@@ -661,6 +670,7 @@ async def test_purchase_blocker_js_error_blocking_fail():
             elif self.path.startswith("/products/item"):
                 html = """<!doctype html><html><body>
                 <form action="/cart/add" method="post">
+                  <input type="hidden" name="id" value="101">
                   <select name="options[Size]">
                     <option value="Small">Small</option>
                   </select>
@@ -722,6 +732,7 @@ async def test_purchase_blocker_unrelated_js_error_pass():
                 html = """<!doctype html><html><body>
                 <script>setTimeout(() => { throw new Error('Unrelated analytics error'); }, 10);</script>
                 <form action="/cart/add" method="post">
+                  <input type="hidden" name="id" value="101">
                   <select name="options[Size]">
                     <option value="Small">Small</option>
                   </select>
@@ -793,6 +804,7 @@ async def test_purchase_blocker_unresolved_network_warn():
             elif self.path.startswith("/products/item"):
                 html = """<!doctype html><html><body>
                 <form action="/cart/add" method="post">
+                  <input type="hidden" name="id" value="101">
                   <select name="options[Size]">
                     <option value="Small">Small</option>
                   </select>
@@ -866,6 +878,7 @@ async def test_purchase_blocker_delayed_ui_update_pass():
             elif self.path.startswith("/products/item"):
                 html = """<!doctype html><html><body>
                 <form action="/cart/add" method="post">
+                  <input type="hidden" name="id" value="101">
                   <select name="options[Size]">
                     <option value="Small">Small</option>
                   </select>
@@ -1059,6 +1072,7 @@ async def test_regression_background_widget_js_error_returns_warn():
             elif self.path.startswith("/products/item"):
                 html = """<!doctype html><html><body>
                 <form action="/cart/add" method="post">
+                  <input type="hidden" name="id" value="101">
                   <select name="options[Size]"><option value="Small">Small</option></select>
                   <button type="submit" name="add" onclick="setTimeout(() => { throw new Error('Unrelated chat widget background loop exception'); }, 0); event.preventDefault();">Add to Cart</button>
                 </form></body></html>"""
@@ -1115,6 +1129,7 @@ async def test_regression_html5_validity_quantity_zero_returns_warn():
             elif self.path.startswith("/products/item"):
                 html = """<!doctype html><html><body>
                 <form action="/cart/add" method="post">
+                  <input type="hidden" name="id" value="101">
                   <input type="number" name="quantity" min="1" value="0" required/>
                   <select name="options[Size]"><option value="Small">Small</option></select>
                   <button type="submit" name="add">Add to Cart</button>
@@ -1177,6 +1192,7 @@ async def test_regression_desktop_context_session_cookie_retention():
             elif self.path.startswith("/products/item"):
                 html = """<!doctype html><html><body>
                 <form action="/cart/add" method="post">
+                  <input type="hidden" name="id" value="101">
                   <select name="options[Size]"><option value="Small">Small</option></select>
                   <button type="submit" name="add">Add to Cart</button>
                 </form>
@@ -1256,6 +1272,7 @@ async def test_regression_non_mutative_screenshot_masking_and_immutability():
             elif self.path.startswith("/products/item"):
                 html = """<!doctype html><html><body>
                 <form action="/cart/add" method="post">
+                  <input type="hidden" name="id" value="101">
                   <input type="text" id="cust-input" name="properties[CustomerName]" value="John Doe Secret PII"/>
                   <textarea id="cust-area" name="properties[Note]">Secret Personal Note</textarea>
                   <select name="options[Size]"><option value="Small">Small</option></select>
@@ -1339,6 +1356,7 @@ async def test_regression_synthetic_secret_in_js_error_redacted():
             elif self.path.startswith("/products/item"):
                 html = """<!doctype html><html><body>
                 <form action="/cart/add" method="post">
+                  <input type="hidden" name="id" value="101">
                   <select name="options[Size]"><option value="Small">Small</option></select>
                   <button type="submit" name="add" onclick="event.preventDefault(); throw new Error('Failed with token shpat_secret99999 user admin@store.com');">Add to Cart</button>
                 </form></body></html>"""
@@ -1412,6 +1430,7 @@ async def test_regression_pre_cart_503_returns_warn():
             elif self.path.startswith("/products/item"):
                 html = """<!doctype html><html><body>
                 <form action="/cart/add" method="post">
+                  <input type="hidden" name="id" value="101">
                   <select name="options[Size]"><option value="Small">Small</option></select>
                   <button type="submit" name="add">Add to Cart</button>
                 </form></body></html>"""
@@ -1468,6 +1487,7 @@ async def test_regression_french_atc_button_pass():
             elif self.path.startswith("/fr/products/item"):
                 html = """<!doctype html><html><body>
                 <form action="/fr/cart/add" method="post">
+                  <input type="hidden" name="id" value="101">
                   <select name="options[Taille]"><option value="Small">Small</option></select>
                   <button type="submit" name="add">AJOUTER AU PANIER</button>
                 </form>
@@ -1612,6 +1632,7 @@ async def test_regression_text_markers_outside_fields_masked_and_immutable():
                 html = """<!doctype html><html><body>
                 <div id="user-header">Customer: SYNTHETIC_PRIVATE_MARKER</div>
                 <form action="/cart/add" method="post">
+                  <input type="hidden" name="id" value="101">
                   <input type="text" id="cust-name" name="properties[Name]" value="Valued Customer Name"/>
                   <select name="options[Size]"><option value="Small">Small</option></select>
                   <button type="submit" name="add">Add to Cart</button>
@@ -1658,3 +1679,685 @@ async def test_regression_text_markers_outside_fields_masked_and_immutable():
         server.shutdown()
         server.server_close()
         thread.join(timeout=5)
+
+@pytest.mark.asyncio
+@pytest.mark.asyncio
+async def test_single_variant_matching_id_input_pass():
+    cart_state = [0]
+    class SingleVariantPassStore(BaseHTTPRequestHandler):
+        def log_message(self, *args): pass
+        def do_GET(self):
+            if self.path == "/products/single-pass.js":
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(b'{"id":901, "title":"Single Pass", "handle":"single-pass", "options":["Title"], "variants":[{"id":9001, "title":"Default Title", "price":1000, "available":true, "options":["Default Title"]}]}')
+            elif self.path == "/products/single-pass":
+                html = """<!doctype html><html><body>
+                <form action="/cart/add" method="post">
+                  <input type="hidden" name="id" value="9001">
+                  <button type="submit" name="add">Add to Cart</button>
+                </form>
+                <script>
+                document.querySelector('form').onsubmit = async (e) => {
+                  e.preventDefault();
+                  await fetch('/cart/add.js', {method:'POST', body:'id=9001&quantity=1'});
+                };
+                </script></body></html>"""
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html")
+                self.end_headers()
+                self.wfile.write(html.encode("utf-8"))
+            elif self.path == "/cart.js":
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                cnt = cart_state[0]
+                if cnt == 0:
+                    self.wfile.write(b'{"item_count":0, "items":[]}')
+                else:
+                    self.wfile.write(b'{"item_count":1, "items":[{"variant_id":9001, "product_id":901, "quantity":1}]}')
+            else:
+                self.send_response(404)
+                self.end_headers()
+
+        def do_POST(self):
+            if self.path == "/cart/add.js" or self.path == "/cart/add":
+                cart_state[0] = 1
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(b'{"id":9001, "variant_id":9001, "quantity":1}')
+            else:
+                self.send_response(404)
+                self.end_headers()
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), SingleVariantPassStore)
+    port = server.server_port
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+
+    url = f"http://127.0.0.1:{port}/products/single-pass"
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        ctx = await browser.new_context()
+        page = await ctx.new_page()
+        await page.goto(url)
+
+        auditor = ShopifyPurchaseBlockerAuditor()
+        result = await auditor.run({"page": page, "base_url": url})
+
+        assert result.status == "PASS"
+        assert result.details["proven_purchase_conditions"]["target_variant_id"] == 9001
+        await browser.close()
+
+    server.shutdown()
+    server.server_close()
+
+
+@pytest.mark.asyncio
+async def test_direct_select_variant_options_available_missing_returns_false():
+    auditor = ShopifyPurchaseBlockerAuditor()
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        page = await browser.new_page()
+        await page.set_content('<form action="/cart/add" method="post"><input type="hidden" name="id" value="101"></form>')
+        form = page.locator("form").first
+
+        target_variant = {"id": 101, "options": ["Default Title"]} # missing 'available' key
+        variants_list = [{"id": 101, "options": ["Default Title"]}] # missing 'available' key
+        options_list = [{"name": "Title"}]
+
+        ok, err, dom_opts = await auditor._select_variant_options_in_dom(page, form, target_variant, options_list, variants_list)
+        assert ok is False
+        assert "available" in err.lower()
+        await browser.close()
+
+
+@pytest.mark.asyncio
+async def test_direct_select_variant_options_conflicting_id_fields_returns_false():
+    auditor = ShopifyPurchaseBlockerAuditor()
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        page = await browser.new_page()
+        await page.set_content('''
+        <form action="/cart/add" method="post">
+          <input type="hidden" name="id" value="101">
+          <input type="hidden" name="id" value="999">
+        </form>
+        ''')
+        form = page.locator("form").first
+
+        target_variant = {"id": 101, "available": True, "options": ["Default Title"]}
+        variants_list = [{"id": 101, "available": True, "options": ["Default Title"]}]
+        options_list = [{"name": "Title"}]
+
+        ok, err, dom_opts = await auditor._select_variant_options_in_dom(page, form, target_variant, options_list, variants_list)
+        assert ok is False
+        assert "conflicting" in err.lower()
+        await browser.close()
+
+
+@pytest.mark.asyncio
+async def test_direct_select_variant_options_no_id_input_and_no_controls_returns_false():
+    auditor = ShopifyPurchaseBlockerAuditor()
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        page = await browser.new_page()
+        await page.set_content('<form action="/cart/add" method="post"><button type="submit">Add</button></form>')
+        form = page.locator("form").first
+
+        target_variant = {"id": 101, "available": True, "options": ["Default Title"]}
+        variants_list = [{"id": 101, "available": True, "options": ["Default Title"]}]
+        options_list = [{"name": "Title"}]
+
+        ok, err, dom_opts = await auditor._select_variant_options_in_dom(page, form, target_variant, options_list, variants_list)
+        assert ok is False
+        assert "no variant id input" in err.lower()
+        await browser.close()
+
+
+@pytest.mark.asyncio
+async def test_direct_select_variant_options_valid_single_variant_returns_true():
+    auditor = ShopifyPurchaseBlockerAuditor()
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        page = await browser.new_page()
+        await page.set_content('<form action="/cart/add" method="post"><input type="hidden" name="id" value="101"></form>')
+        form = page.locator("form").first
+
+        target_variant = {"id": 101, "available": True, "options": ["Default Title"]}
+        variants_list = [{"id": 101, "available": True, "options": ["Default Title"]}]
+        options_list = [{"name": "Title"}]
+
+        ok, err, dom_opts = await auditor._select_variant_options_in_dom(page, form, target_variant, options_list, variants_list)
+        assert ok is True
+        assert dom_opts == {"Title": "Default Title"}
+        await browser.close()
+
+
+@pytest.mark.asyncio
+async def test_external_form_attribute_binding_accepted():
+    auditor = ShopifyPurchaseBlockerAuditor()
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        page = await browser.new_page()
+        await page.set_content('''
+        <form action="/cart/add" method="post" id="prd-form-1"></form>
+        <input type="hidden" name="id" value="101" form="prd-form-1">
+        <button type="submit" name="add" form="prd-form-1">Add to Cart</button>
+        ''')
+        form = await auditor._find_main_product_form(page, target_variant_id=101)
+        btn = await auditor._find_atc_button(page, form)
+        assert btn is not None
+
+        target_variant = {"id": 101, "available": True, "options": ["Default Title"]}
+        variants_list = [{"id": 101, "available": True, "options": ["Default Title"]}]
+        options_list = [{"name": "Title"}]
+
+        ok, err, dom_opts = await auditor._select_variant_options_in_dom(page, form, target_variant, options_list, variants_list)
+        assert ok is True
+        await browser.close()
+
+
+@pytest.mark.asyncio
+async def test_external_form_attribute_linked_to_other_form_rejected():
+    auditor = ShopifyPurchaseBlockerAuditor()
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        page = await browser.new_page()
+        await page.set_content('''
+        <form action="/cart/add" method="post" id="prd-form-1"></form>
+        <form id="other-form"></form>
+        <input type="hidden" name="id" value="101" form="other-form">
+        <button type="submit" name="add" form="prd-form-1">Add to Cart</button>
+        ''')
+        form = await auditor._find_main_product_form(page, target_variant_id=101)
+
+        target_variant = {"id": 101, "available": True, "options": ["Default Title"]}
+        variants_list = [{"id": 101, "available": True, "options": ["Default Title"]}]
+        options_list = [{"name": "Title"}]
+
+        ok, err, dom_opts = await auditor._select_variant_options_in_dom(page, form, target_variant, options_list, variants_list)
+        assert ok is False
+        assert ("no variant id input" in err.lower() or "main product form missing" in err.lower())
+        await browser.close()
+
+
+@pytest.mark.asyncio
+async def test_button_formaction_checkout_override_rejected():
+    auditor = ShopifyPurchaseBlockerAuditor()
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        page = await browser.new_page()
+        await page.set_content('''
+        <form action="/cart/add" method="post" id="prd-form-1">
+          <input type="hidden" name="id" value="101">
+          <button type="submit" name="add" formaction="/checkout">Buy Now Checkout</button>
+        </form>
+        ''')
+        form = await auditor._find_main_product_form(page, target_variant_id=101)
+        btn = await auditor._find_atc_button(page, form)
+        assert btn is None
+        await browser.close()
+
+
+@pytest.mark.asyncio
+async def test_installments_form_precedes_correct_product_form():
+    auditor = ShopifyPurchaseBlockerAuditor()
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        page = await browser.new_page()
+        await page.set_content('''
+        <form action="/cart/add" method="post" id="ProductInstallmentsForm" class="prd-ProductPaymentTerms">
+          <input type="hidden" name="id" value="101">
+          <button type="button">Payment terms info</button>
+        </form>
+        <form action="/cart/add" method="post" id="MainProductForm" class="prd-ProductOffers_Form">
+          <input type="hidden" name="id" value="101">
+          <button type="submit" name="add">Add to Bag</button>
+        </form>
+        ''')
+        form = await auditor._find_main_product_form(page, target_variant_id=101)
+        form_id = await form.get_attribute("id")
+        assert form_id == "MainProductForm"
+        btn = await auditor._find_atc_button(page, form)
+        assert btn is not None
+        await browser.close()
+
+
+@pytest.mark.asyncio
+async def test_element_inside_form1_with_form_attr_other_not_attributed_to_form1():
+    auditor = ShopifyPurchaseBlockerAuditor()
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        page = await browser.new_page()
+        await page.set_content('''
+        <form id="other-form"></form>
+        <form action="/cart/add" method="post" id="form-1">
+          <input type="hidden" name="id" value="101" form="other-form">
+          <button type="submit" name="add" form="other-form">Add to Cart</button>
+        </form>
+        ''')
+        form = page.locator("#form-1").first
+
+        target_variant = {"id": 101, "available": True, "options": ["Default Title"]}
+        variants_list = [{"id": 101, "available": True, "options": ["Default Title"]}]
+        options_list = [{"name": "Title"}]
+
+        ok, err, dom_opts = await auditor._select_variant_options_in_dom(page, form, target_variant, options_list, variants_list)
+        assert ok is False
+        assert "no variant id input found owned by main product form" in err.lower()
+
+        btn = await auditor._find_atc_button(page, form)
+        assert btn is None
+        await browser.close()
+
+
+@pytest.mark.asyncio
+async def test_unproven_relationship_returns_warn():
+    auditor = ShopifyPurchaseBlockerAuditor()
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        page = await browser.new_page()
+        await page.set_content('''
+        <div>
+          <input type="hidden" name="id" value="101">
+          <button type="submit" name="add">Add to Cart</button>
+        </div>
+        ''')
+        form = await auditor._find_main_product_form(page, target_variant_id=101)
+        btn = await auditor._find_atc_button(page, form)
+        assert btn is None
+        await browser.close()
+
+
+@pytest.mark.asyncio
+async def test_multi_variant_does_not_qualify_for_single_variant_bypass():
+    class MultiVariantStore(BaseHTTPRequestHandler):
+        def log_message(self, *args): pass
+        def do_GET(self):
+            if self.path == "/products/multi.js":
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(b'{"id":903, "title":"Multi Variant", "handle":"multi", "options":[{"name":"Size", "values":["S", "M"]}], "variants":[{"id":9003, "title":"S", "price":1000, "available":true, "options":["S"]}, {"id":9004, "title":"M", "price":1200, "available":true, "options":["M"]}]}')
+            elif self.path == "/products/multi":
+                html = """<!doctype html><html><body>
+                <form action="/cart/add" method="post">
+                  <input type="hidden" name="id" value="9003">
+                  <button type="submit" name="add">Add to Cart</button>
+                </form></body></html>"""
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html")
+                self.end_headers()
+                self.wfile.write(html.encode("utf-8"))
+            elif self.path == "/cart.js":
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(b'{"item_count":0, "items":[]}')
+            else:
+                self.send_response(404)
+                self.end_headers()
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), MultiVariantStore)
+    port = server.server_port
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+
+    url = f"http://127.0.0.1:{port}/products/multi"
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        ctx = await browser.new_context()
+        page = await ctx.new_page()
+        await page.goto(url)
+
+        auditor = ShopifyPurchaseBlockerAuditor()
+        result = await auditor.run({"page": page, "base_url": url})
+
+        assert result.status == "WARN"
+        assert result.details["reason_code"] in ("UNPROVEN_OPTION_PATTERN", "BUTTON_MISSING_OR_DISABLED", "BUTTON_MISSING")
+        await browser.close()
+
+    server.shutdown()
+    server.server_close()
+
+
+@pytest.mark.asyncio
+async def test_matching_id_input_outside_main_form_rejected():
+    class OutsideFormStore(BaseHTTPRequestHandler):
+        def log_message(self, *args): pass
+        def do_GET(self):
+            if self.path == "/products/outside.js":
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(b'{"id":904, "title":"Outside Form", "handle":"outside", "options":["Title"], "variants":[{"id":9005, "title":"Default Title", "price":1000, "available":true, "options":["Default Title"]}]}')
+            elif self.path == "/products/outside":
+                html = """<!doctype html><html><body>
+                <form id="other-form"><input type="hidden" name="id" value="9005"></form>
+                <form action="/cart/add" method="post">
+                  <button type="submit" name="add">Add to Cart</button>
+                </form></body></html>"""
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html")
+                self.end_headers()
+                self.wfile.write(html.encode("utf-8"))
+            elif self.path == "/cart.js":
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(b'{"item_count":0, "items":[]}')
+            else:
+                self.send_response(404)
+                self.end_headers()
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), OutsideFormStore)
+    port = server.server_port
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+
+    url = f"http://127.0.0.1:{port}/products/outside"
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        ctx = await browser.new_context()
+        page = await ctx.new_page()
+        await page.goto(url)
+
+        auditor = ShopifyPurchaseBlockerAuditor()
+        result = await auditor.run({"page": page, "base_url": url})
+
+        assert result.status == "WARN"
+        assert result.details["reason_code"] in ("UNPROVEN_OPTION_PATTERN", "BUTTON_MISSING_OR_DISABLED")
+        await browser.close()
+
+    server.shutdown()
+    server.server_close()
+
+
+@pytest.mark.asyncio
+async def test_atc_button_prd_product_offers_submit_discovered():
+    cart_state = [0]
+    class PrdSubmitStore(BaseHTTPRequestHandler):
+        def log_message(self, *args): pass
+        def do_GET(self):
+            if self.path == "/products/prd-submit.js":
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(b'{"id":905, "title":"Prd Submit", "handle":"prd-submit", "options":["Title"], "variants":[{"id":9006, "title":"Default Title", "price":1000, "available":true, "options":["Default Title"]}]}')
+            elif self.path == "/products/prd-submit":
+                html = """<!doctype html><html><body>
+                <form action="/cart/add" method="post" class="prd-ProductOffers_Form">
+                  <input type="hidden" name="id" value="9006">
+                  <button type="submit" class="prd-ProductOffers_Submit">Add to Bag</button>
+                </form>
+                <script>
+                document.querySelector('form').onsubmit = async (e) => {
+                  e.preventDefault();
+                  await fetch('/cart/add.js', {method:'POST', body:'id=9006&quantity=1'});
+                };
+                </script></body></html>"""
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html")
+                self.end_headers()
+                self.wfile.write(html.encode("utf-8"))
+            elif self.path == "/cart.js":
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                cnt = cart_state[0]
+                if cnt == 0:
+                    self.wfile.write(b'{"item_count":0, "items":[]}')
+                else:
+                    self.wfile.write(b'{"item_count":1, "items":[{"variant_id":9006, "product_id":905, "quantity":1}]}')
+            else:
+                self.send_response(404)
+                self.end_headers()
+
+        def do_POST(self):
+            if self.path == "/cart/add.js" or self.path == "/cart/add":
+                cart_state[0] = 1
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(b'{"id":9006, "variant_id":9006, "quantity":1}')
+            else:
+                self.send_response(404)
+                self.end_headers()
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), PrdSubmitStore)
+    port = server.server_port
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+
+    url = f"http://127.0.0.1:{port}/products/prd-submit"
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        ctx = await browser.new_context()
+        page = await ctx.new_page()
+        await page.goto(url)
+
+        auditor = ShopifyPurchaseBlockerAuditor()
+        result = await auditor.run({"page": page, "base_url": url})
+
+        assert result.status == "PASS"
+        await browser.close()
+
+    server.shutdown()
+    server.server_close()
+
+
+@pytest.mark.asyncio
+async def test_buy_now_and_unknown_generic_submit_buttons_rejected():
+    class ExpressSubmitStore(BaseHTTPRequestHandler):
+        def log_message(self, *args): pass
+        def do_GET(self):
+            if self.path == "/products/express.js":
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(b'{"id":906, "title":"Express", "handle":"express", "options":["Title"], "variants":[{"id":9007, "title":"Default Title", "price":1000, "available":true, "options":["Default Title"]}]}')
+            elif self.path == "/products/express":
+                html = """<!doctype html><html><body>
+                <form action="/cart/add" method="post">
+                  <input type="hidden" name="id" value="9007">
+                  <button type="submit" class="shopify-payment-button__button">Buy it now</button>
+                </form></body></html>"""
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html")
+                self.end_headers()
+                self.wfile.write(html.encode("utf-8"))
+            elif self.path == "/cart.js":
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(b'{"item_count":0, "items":[]}')
+            else:
+                self.send_response(404)
+                self.end_headers()
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), ExpressSubmitStore)
+    port = server.server_port
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+
+    url = f"http://127.0.0.1:{port}/products/express"
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        ctx = await browser.new_context()
+        page = await ctx.new_page()
+        await page.goto(url)
+
+        auditor = ShopifyPurchaseBlockerAuditor()
+        result = await auditor.run({"page": page, "base_url": url})
+
+        assert result.status == "WARN"
+        assert result.details["reason_code"] in ("BUTTON_MISSING_OR_DISABLED", "BUTTON_MISSING", "UNPROVEN_OPTION_PATTERN")
+        await browser.close()
+
+    server.shutdown()
+    server.server_close()
+
+
+@pytest.mark.asyncio
+async def test_wrong_form_precedes_correct_product_form():
+    auditor = ShopifyPurchaseBlockerAuditor()
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        page = await browser.new_page()
+        await page.set_content('''
+        <form action="/cart/add" method="post" id="wrong-form">
+          <input type="hidden" name="id" value="9999">
+          <button type="submit" name="add">Add Wrong</button>
+        </form>
+        <form action="/cart/add" method="post" id="correct-form">
+          <input type="hidden" name="id" value="101">
+          <button type="submit" name="add">Add Correct</button>
+        </form>
+        ''')
+        form = await auditor._find_main_product_form(page, target_variant_id=101)
+        assert form is not None
+        form_id = await form.get_attribute("id")
+        assert form_id == "correct-form"
+        btn = await auditor._find_atc_button(page, form)
+        assert btn is not None
+        await browser.close()
+
+
+@pytest.mark.asyncio
+async def test_form_itself_forbidden_destination_action_checkout_rejected():
+    auditor = ShopifyPurchaseBlockerAuditor()
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        page = await browser.new_page()
+        await page.set_content('''
+        <form action="/checkout" method="post" id="checkout-form">
+          <input type="hidden" name="id" value="101">
+          <button type="submit" name="add">Buy Now Direct</button>
+        </form>
+        ''')
+        form = page.locator("#checkout-form").first
+        btn = await auditor._find_atc_button(page, form)
+        assert btn is None
+        await browser.close()
+
+
+@pytest.mark.asyncio
+async def test_main_form_none_returns_warn_directly():
+    class NoFormStore(BaseHTTPRequestHandler):
+        def log_message(self, *args): pass
+        def do_GET(self):
+            if self.path == "/products/no-form.js":
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(b'{"id":908, "title":"No Form", "handle":"no-form", "options":["Title"], "variants":[{"id":9008, "title":"Default Title", "price":1000, "available":true, "options":["Default Title"]}]}')
+            elif self.path == "/products/no-form":
+                html = """<!doctype html><html><body><h1>Product without form</h1></body></html>"""
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html")
+                self.end_headers()
+                self.wfile.write(html.encode("utf-8"))
+            elif self.path == "/cart.js":
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(b'{"item_count":0, "items":[]}')
+            else:
+                self.send_response(404)
+                self.end_headers()
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), NoFormStore)
+    port = server.server_port
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+
+    url = f"http://127.0.0.1:{port}/products/no-form"
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        ctx = await browser.new_context()
+        page = await ctx.new_page()
+        await page.goto(url)
+
+        auditor = ShopifyPurchaseBlockerAuditor()
+        result = await auditor.run({"page": page, "base_url": url})
+
+        assert result.status == "WARN"
+        assert result.details["reason_code"] == "BUTTON_MISSING_OR_DISABLED"
+        await browser.close()
+
+    server.shutdown()
+    server.server_close()
+
+
+@pytest.mark.asyncio
+async def test_new_url_document_baseuri_destination_and_method_inspection():
+    auditor = ShopifyPurchaseBlockerAuditor()
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        page = await browser.new_page()
+        await page.set_content('''
+        <base href="https://example.com/store/">
+        <form action="../checkout" method="post" id="relative-checkout-form">
+          <input type="hidden" name="id" value="101">
+          <button type="submit" name="add">Checkout</button>
+        </form>
+        ''')
+        form = page.locator("#relative-checkout-form").first
+        btn = await auditor._find_atc_button(page, form)
+        assert btn is None
+        await browser.close()
+
+
+@pytest.mark.asyncio
+async def test_single_variant_mismatched_id_input_warn():
+    class SingleVariantMismatchStore(BaseHTTPRequestHandler):
+        def log_message(self, *args): pass
+        def do_GET(self):
+            if self.path == "/products/single-mismatch.js":
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(b'{"id":902, "title":"Single Mismatch", "handle":"single-mismatch", "options":["Title"], "variants":[{"id":9002, "title":"Default Title", "price":1000, "available":true, "options":["Default Title"]}]}')
+            elif self.path == "/products/single-mismatch":
+                html = """<!doctype html><html><body>
+                <form action="/cart/add" method="post">
+                  <input type="hidden" name="id" value="9999">
+                  <button type="submit" name="add">Add to Cart</button>
+                </form></body></html>"""
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html")
+                self.end_headers()
+                self.wfile.write(html.encode("utf-8"))
+            elif self.path == "/cart.js":
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(b'{"item_count":0, "items":[]}')
+            else:
+                self.send_response(404)
+                self.end_headers()
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), SingleVariantMismatchStore)
+    port = server.server_port
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+
+    url = f"http://127.0.0.1:{port}/products/single-mismatch"
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        ctx = await browser.new_context()
+        page = await ctx.new_page()
+        await page.goto(url)
+
+        auditor = ShopifyPurchaseBlockerAuditor()
+        result = await auditor.run({"page": page, "base_url": url})
+
+        assert result.status == "WARN"
+        assert result.details["reason_code"] in ("UNPROVEN_OPTION_PATTERN", "BUTTON_MISSING_OR_DISABLED")
+        await browser.close()
+
+    server.shutdown()
+    server.server_close()

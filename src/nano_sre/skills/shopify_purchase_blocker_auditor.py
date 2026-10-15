@@ -260,12 +260,28 @@ class ShopifyPurchaseBlockerAuditor(Skill):
                     }),
                 )
 
-            # Find main product form/container
-            main_form = audit_page.locator(
-                'form[action*="/cart/add"], form.prd-ProductOffers_Form, [data-type="add-to-cart-form"]'
-            ).first
-            if await main_form.count() == 0:
-                main_form = audit_page.locator('form:has(button[name="add"]), section[data-product-single-media-group]').first
+            # Find main product form/container matching target_variant id
+            target_vid = target_variant.get("id") if target_variant else None
+            main_form = await self._find_main_product_form(audit_page, target_vid)
+
+            if main_form is None:
+                screenshot_path = await self._take_screenshot(audit_page, "form_unconfirmed")
+                return SkillResult(
+                    skill_name=self.name(),
+                    status="WARN",
+                    summary=_redact_value("Main product form unconfirmed or missing matching variant ID field"),
+                    details=_redact_value({
+                        "reason_code": "BUTTON_MISSING_OR_DISABLED",
+                        "steps": steps + ["Could not confirm main product form bound to target variant ID"],
+                        "proven_purchase_conditions": {"target_variant_id": target_vid},
+                        "expected": "Main product form bound to target variant ID",
+                        "observed": "Main product form unconfirmed or missing",
+                        "timestamp": _now(),
+                        "reproduction_steps": [f"Navigate to {current_url}", "Inspect main product form"],
+                        "redacted_screenshot": screenshot_path,
+                        "network_cart_evidence": {},
+                    }),
+                )
 
             # Dismiss modal overlays if present
             dismissed_popup = await self._dismiss_overlays_if_any(audit_page)
@@ -294,7 +310,7 @@ class ShopifyPurchaseBlockerAuditor(Skill):
 
             # Option selection & DOM selection proof
             option_success, option_error, proven_dom_options = await self._select_variant_options_in_dom(
-                audit_page, main_form, target_variant, options_list
+                audit_page, main_form, target_variant, options_list, variants_list
             )
             satisfied_consents = await self._satisfy_required_consents(audit_page, main_form)
             if satisfied_consents:
@@ -610,7 +626,7 @@ class ShopifyPurchaseBlockerAuditor(Skill):
 
     async def _check_unfulfilled_customization_fields(self, page, main_form) -> Optional[str]:
         """Check for mandatory personalization/text inputs requiring user input or violating HTML validity."""
-        form_loc = main_form if await main_form.count() > 0 else page
+        form_loc = main_form if (main_form is not None and await main_form.count() > 0) else page
         try:
             inputs = form_loc.locator(
                 'input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="submit"]), textarea, [name*="properties"]'
@@ -652,13 +668,175 @@ class ShopifyPurchaseBlockerAuditor(Skill):
                     pass
         return dismissed
 
+    async def _find_main_product_form(self, page, target_variant_id: Any) -> Optional[Any]:
+        """Locate main product form strictly owning an ID input matching target_variant_id and having a valid ATC button.
+        Returns None if target_variant_id is empty, fields are missing or conflicting, or form selection is ambiguous.
+        """
+        target_vid_str = str(target_variant_id).strip() if target_variant_id is not None else ""
+        if not target_vid_str:
+            return None
+
+        all_forms = page.locator('form')
+        cnt = await all_forms.count()
+        if cnt == 0:
+            return None
+
+        matching_forms = []
+
+        for i in range(cnt):
+            f = all_forms.nth(i)
+            is_installments = await f.evaluate("""
+                el => {
+                    const id = String(el.id || '');
+                    const cls = String(el.className || '');
+                    return id.includes('Installment') || cls.includes('PaymentTerms') || cls.includes('payment-terms');
+                }
+            """)
+            if is_installments:
+                continue
+
+            form_handle = await f.element_handle()
+            id_inputs = page.locator('input[name="id"], select[name="id"]')
+            id_cnt = await id_inputs.count()
+
+            owned_id_vals = []
+            has_conflict = False
+
+            for j in range(id_cnt):
+                inp = id_inputs.nth(j)
+                is_owned, val_str, is_disabled = await inp.evaluate("""
+                    (el, formEl) => {
+                        if (!formEl || el.form !== formEl) return [false, '', false];
+                        const disabled = el.disabled || el.hasAttribute('disabled');
+                        const val = el.value ? String(el.value).trim() : '';
+                        return [true, val, disabled];
+                    }
+                """, form_handle)
+
+                if is_owned and not is_disabled:
+                    if val_str:
+                        if val_str == target_vid_str:
+                            owned_id_vals.append(val_str)
+                        else:
+                            has_conflict = True
+
+            if not owned_id_vals or has_conflict:
+                continue
+
+            btn = await self._find_atc_button(page, f)
+            if btn is not None:
+                matching_forms.append(f)
+
+        if len(matching_forms) == 1:
+            return matching_forms[0]
+
+        return None
+
     async def _select_variant_options_in_dom(
-        self, page, main_form, target_variant: dict[str, Any], options_list: list[Any]
+        self, page, main_form, target_variant: dict[str, Any], options_list: list[Any], variants_list: list[Any] = None
     ) -> tuple[bool, str, dict[str, str]]:
         """Select option values required for target_variant via UI interaction and prove DOM selection strictly."""
-        form_loc = main_form if await main_form.count() > 0 else page
+        form_loc = main_form if (main_form is not None and await main_form.count() > 0) else page
         variant_options = target_variant.get("options", [])
         proven_dom_options = {}
+        target_vid = str(target_variant.get("id")) if target_variant.get("id") is not None else ""
+
+        # Single-variant verification: Strictly require variants_list to have exactly 1 item
+        if variants_list is not None and len(variants_list) == 1:
+            try:
+                target_vid = str(target_variant.get("id")).strip() if target_variant.get("id") is not None else ""
+                if not target_vid:
+                    return False, "Target variant ID is empty", proven_dom_options
+
+                v0 = variants_list[0]
+                v0_id = str(v0.get("id")).strip() if v0.get("id") is not None else ""
+                v0_avail = v0.get("available")
+                t_avail = target_variant.get("available")
+
+                # Require available explicitly True (no default=True fallback)
+                if v0_avail is not True or t_avail is not True:
+                    return False, "Single variant is not explicitly available", proven_dom_options
+
+                if target_vid != v0_id:
+                    return False, f"Target variant ID {target_vid} does not match variants_list variant ID {v0_id}", proven_dom_options
+
+                if main_form is None or await main_form.count() == 0:
+                    return False, "Main product form missing for single variant verification", proven_dom_options
+
+                form_handle = await main_form.element_handle()
+                id_inputs_loc = page.locator('input[name="id"], select[name="id"]')
+                id_cnt = await id_inputs_loc.count()
+
+                owned_id_values = []
+                for i in range(id_cnt):
+                    inp = id_inputs_loc.nth(i)
+                    is_owned, val_str, is_disabled = await inp.evaluate("""
+                        (el, formEl) => {
+                            if (!formEl || el.form !== formEl) return [false, '', false];
+                            const disabled = el.disabled || el.hasAttribute('disabled');
+                            const val = el.value ? String(el.value).trim() : '';
+                            return [true, val, disabled];
+                        }
+                    """, form_handle)
+
+                    if is_owned:
+                        if is_disabled:
+                            continue
+                        if val_str:
+                            owned_id_values.append(val_str)
+
+                if not owned_id_values:
+                    return False, "No variant ID input found owned by main product form", proven_dom_options
+
+                has_match = False
+                for val_str in owned_id_values:
+                    if val_str == target_vid:
+                        has_match = True
+                    else:
+                        return False, f"Conflicting variant ID '{val_str}' found in main product form (expected '{target_vid}')", proven_dom_options
+
+                if not has_match:
+                    return False, f"No matching variant ID '{target_vid}' found in main product form", proven_dom_options
+
+                opt_controls_loc = page.locator('select:not([name="id"]), input[type="radio"]:not([name="id"])')
+                c_cnt = await opt_controls_loc.count()
+                v_options = target_variant.get("options", [])
+                v_opts_lower = {str(o).lower() for o in v_options}
+                for i in range(c_cnt):
+                    ctrl = opt_controls_loc.nth(i)
+                    is_owned, is_disabled, cur_val = await ctrl.evaluate("""
+                        (el, formEl) => {
+                            if (!formEl || el.form !== formEl) return [false, false, ''];
+                            const disabled = el.disabled || el.hasAttribute('disabled');
+                            let val = '';
+                            if (el.tagName.toLowerCase() === 'select') val = el.value || '';
+                            else if (el.type === 'radio' && el.checked) val = el.value || '';
+                            return [true, disabled, String(val).trim()];
+                        }
+                    """, form_handle)
+
+                    if is_owned:
+                        if is_disabled:
+                            return False, "Option element is disabled or non-interactive in UI", proven_dom_options
+                        if cur_val:
+                            if cur_val != target_vid and cur_val.lower() not in v_opts_lower:
+                                return False, f"Conflicting option control '{cur_val}' found in main product form", proven_dom_options
+
+                opt_key = options_list[0].get("name", "Title") if options_list and isinstance(options_list[0], dict) else "Title"
+                v_opts = target_variant.get("options", [])
+                opt_val = v_opts[0] if v_opts else "Default Title"
+                proven_dom_options[opt_key] = str(opt_val)
+                return True, "", proven_dom_options
+            except Exception as e:
+                return False, f"Single variant verification error: {e}", proven_dom_options
+
+        # Multi-variant logic below
+        has_option_controls = False
+        try:
+            opt_cnt = await form_loc.locator('select:not([name="id"]), input[type="radio"]:not([name="id"]), [data-value], .swatch, button.variant-option').count()
+            has_option_controls = opt_cnt > 0
+        except Exception:
+            pass
 
         option_names = []
         for opt in options_list:
@@ -666,6 +844,9 @@ class ShopifyPurchaseBlockerAuditor(Skill):
                 option_names.append(opt.get("name", ""))
             elif isinstance(opt, str):
                 option_names.append(opt)
+
+        if not has_option_controls:
+            return False, "No option controls found in main product form for multi-variant product", proven_dom_options
 
         for idx, val in enumerate(variant_options):
             opt_name = option_names[idx] if idx < len(option_names) else f"Option{idx+1}"
@@ -737,7 +918,7 @@ class ShopifyPurchaseBlockerAuditor(Skill):
 
     async def _satisfy_required_consents(self, page, main_form) -> int:
         """Check mandatory terms/consent checkboxes inside product form or page."""
-        form_loc = main_form if await main_form.count() > 0 else page
+        form_loc = main_form if (main_form is not None and await main_form.count() > 0) else page
         checkboxes = form_loc.locator('input[type="checkbox"][required], input[type="checkbox"][name*="terms" i], input[type="checkbox"][name*="agree" i]')
         count = await checkboxes.count()
         satisfied = 0
@@ -756,25 +937,78 @@ class ShopifyPurchaseBlockerAuditor(Skill):
         return satisfied
 
     async def _find_atc_button(self, page, main_form):
-        """Locate visible enabled Add to Cart button supporting multi-language themes."""
-        form_loc = main_form if await main_form.count() > 0 else page
+        """Locate visible enabled Add to Cart button strictly owned by main product form (el.form === main_form)."""
+        if main_form is None or await main_form.count() == 0:
+            return None
+
+        form_handle = await main_form.element_handle()
         selectors = [
             'button[name="add"]:visible:not([disabled])',
             'button.add-to-cart:visible:not([disabled])',
+            'button.prd-ProductOffers_Submit:visible:not([disabled])',
             'button[type="submit"]:has-text("add"):visible:not([disabled])',
             'button[type="submit"]:has-text("bag"):visible:not([disabled])',
             'button:has-text("ADD TO CART"):visible:not([disabled])',
             'button:has-text("ADD TO BAG"):visible:not([disabled])',
-            'button:has-text("AJOUTER AU PANIER"):visible:not([disabled])',  # French
-            'button:has-text("IN DEN WARENKORB"):visible:not([disabled])',  # German
-            'button:has-text("AÑADIR AL CARRITO"):visible:not([disabled])',  # Spanish
-            'button:has-text("AGGIUNGI AL CARRELLO"):visible:not([disabled])',  # Italian
+            'button:has-text("Add to Bag"):visible:not([disabled])',
+            'button:has-text("AJOUTER AU PANIER"):visible:not([disabled])',
             '[data-add-to-cart]:visible:not([disabled])',
         ]
+
         for sel in selectors:
-            btn = form_loc.locator(sel).first
-            if await btn.count() > 0:
-                return btn
+            btns = page.locator(sel)
+            b_cnt = await btns.count()
+            for i in range(b_cnt):
+                btn = btns.nth(i)
+                is_owned, is_invalid_dest = await btn.evaluate("""
+                    (el, formEl) => {
+                        if (!formEl || el.form !== formEl) return [false, false];
+
+                        const disabled = el.disabled || el.hasAttribute('disabled');
+                        if (disabled) return [false, false];
+
+                        const btnMethod = (el.getAttribute('formmethod') || '').trim();
+                        const formMethod = (formEl.getAttribute('method') || formEl.method || '').trim();
+                        const effectiveMethod = (btnMethod || formMethod || 'POST').toUpperCase();
+
+                        const btnAction = (el.getAttribute('formaction') || '').trim();
+                        const rawAction = btnAction || (formEl.getAttribute('action') || '').trim();
+
+                        if (rawAction) {
+                            try {
+                                let baseUri = document.baseURI;
+                                if (!baseUri || !baseUri.startsWith('http')) {
+                                    baseUri = 'http://localhost/';
+                                }
+                                const resolvedUrl = new URL(rawAction, baseUri);
+                                const lowerPath = resolvedUrl.pathname.toLowerCase();
+                                const lowerHref = resolvedUrl.href.toLowerCase();
+
+                                const isForbiddenPath = lowerPath.includes('/checkout') || lowerPath.includes('/orders') || lowerPath.includes('/payments') || lowerHref.includes('checkout.shopify');
+                                const isExternalOrigin = resolvedUrl.origin.startsWith('http') && window.location.origin.startsWith('http') && resolvedUrl.origin !== window.location.origin;
+
+                                if (isForbiddenPath || isExternalOrigin) {
+                                    return [true, true];
+                                }
+
+                                const isExactCartAdd = lowerPath === '/cart/add' || lowerPath === '/cart/add.js' || lowerPath.endsWith('/cart/add') || lowerPath.endsWith('/cart/add.js');
+                                if (effectiveMethod !== 'POST' && isExactCartAdd) {
+                                    return [true, true];
+                                }
+                            } catch(e) {
+                                return [true, true];
+                            }
+                        }
+
+                        return [true, false];
+                    }
+                """, form_handle)
+
+                if is_owned:
+                    if is_invalid_dest:
+                        continue
+                    return btn
+
         return None
 
     async def _is_button_blocked_by_overlay(self, page, atc_button) -> tuple[bool, str]:
