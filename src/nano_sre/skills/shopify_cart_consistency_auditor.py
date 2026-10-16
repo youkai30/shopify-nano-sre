@@ -345,52 +345,39 @@ class ShopifyCartConsistencyAuditor(Skill):
         pass_timestamp = _now()
 
         try:
+            from nano_sre.utils.shopify import pick_representative_product
+
             current_url = _sanitize_url(page.url or base_url)
             origin, locale = _get_locale_prefix_and_origin(current_url)
             handle = _extract_handle_from_url(current_url)
 
-            if not handle and "/products/" not in current_url.lower():
-                await page.goto(base_url, wait_until="commit", timeout=60000)
-                await asyncio.sleep(1)
-
-                product_links = page.locator('a[href*="/products/"]')
-                count = await product_links.count()
-                for i in range(min(count, 10)):
-                    href = await product_links.nth(i).get_attribute("href")
-                    if href:
-                        handle = _extract_handle_from_url(href)
-                        if handle:
-                            product_url = href if href.startswith("http") else urljoin(base_url, href)
-                            await page.goto(product_url, wait_until="commit", timeout=60000)
-                            await asyncio.sleep(1)
-                            current_url = _sanitize_url(page.url)
-                            origin, locale = _get_locale_prefix_and_origin(current_url)
-                            break
-
+            product_selection_meta = {}
             if not handle:
-                try:
-                    res = await page.request.get(f"{origin}{locale}/products.json?limit=5")
-                    if res.ok:
-                        data = await res.json()
-                        products = data.get("products", [])
-                        if products:
-                            handle = products[0].get("handle")
-                            product_url = f"{origin}{locale}/products/{handle}"
-                            await page.goto(product_url, wait_until="commit", timeout=60000)
-                            await asyncio.sleep(1)
-                            current_url = _sanitize_url(page.url)
-                            origin, locale = _get_locale_prefix_and_origin(current_url)
-                except Exception as e:
-                    logger.debug("Failed products.json lookup: %s", e)
+                chosen_handle, selection_meta = await pick_representative_product(
+                    page=page,
+                    origin=origin,
+                    locale=locale,
+                    base_url=base_url,
+                    prefer_multi_variant=True
+                )
+                product_selection_meta = selection_meta
+                if chosen_handle:
+                    handle = chosen_handle
+                    product_url = f"{origin}{locale}/products/{handle}"
+                    await page.goto(product_url, wait_until="domcontentloaded", timeout=60000)
+                    await asyncio.sleep(1)
+                    current_url = _sanitize_url(page.url)
+                    origin, locale = _get_locale_prefix_and_origin(current_url)
 
             if not handle:
                 return SkillResult(
                     skill_name=self.name(),
                     status="WARN",
-                    summary=_redact_value("Could not discover a product handle to audit cart consistency"),
+                    summary=_redact_value("Could not discover a representative product handle to audit cart consistency"),
                     details=_redact_value({
                         "reason_code": "PRODUCT_NOT_DISCOVERED",
                         "steps": steps,
+                        "product_selection": product_selection_meta,
                         "checks": {},
                     }),
                 ), {"failed_check": None, "reason_code": "PRODUCT_NOT_DISCOVERED", "timestamp": pass_timestamp, "product_handle": None}
@@ -398,22 +385,46 @@ class ShopifyCartConsistencyAuditor(Skill):
             steps.append(f"Auditing product handle: {handle}")
 
             ajax_url = f"{origin}{locale}/products/{handle}.js"
+            ajax_product_meta = {
+                "status": None,
+                "final_url": ajax_url,
+                "error_type": None,
+                "error_message": None,
+                "elapsed_ms": None,
+            }
+
             product_data = None
-            try:
-                ajax_res = await page.request.get(ajax_url, timeout=15000)
-                if ajax_res.ok:
-                    product_data = await ajax_res.json()
-            except Exception as e:
-                logger.debug("Ajax product fetch failed: %s", e)
+            t0 = datetime.now()
+            for attempt in range(2):
+                try:
+                    ajax_res = await page.request.get(ajax_url, timeout=15000)
+                    ajax_product_meta["status"] = ajax_res.status
+                    ajax_product_meta["final_url"] = ajax_res.url
+                    if ajax_res.ok:
+                        product_data = await ajax_res.json()
+                        break
+                    else:
+                        ajax_product_meta["error_type"] = f"HTTP_{ajax_res.status}"
+                        ajax_product_meta["error_message"] = f"HTTP {ajax_res.status} response"
+                except Exception as e:
+                    ajax_product_meta["error_type"] = type(e).__name__
+                    ajax_product_meta["error_message"] = str(e)
+                    if attempt == 0:
+                        await asyncio.sleep(0.5)
+
+            ajax_product_meta["elapsed_ms"] = int((datetime.now() - t0).total_seconds() * 1000)
 
             if not product_data:
+                err_desc = f"(status={ajax_product_meta['status']})" if ajax_product_meta['status'] else f"(error_type={ajax_product_meta['error_type']})"
                 return SkillResult(
                     skill_name=self.name(),
                     status="WARN",
-                    summary=_redact_value(f"Could not fetch product JSON from {ajax_url}"),
+                    summary=_redact_value(f"Could not fetch product JSON from {ajax_url} {err_desc}"),
                     details=_redact_value({
                         "reason_code": "PRODUCT_JSON_UNAVAILABLE",
                         "steps": steps,
+                        "product_selection": product_selection_meta,
+                        "ajax_product_meta": ajax_product_meta,
                         "checks": {},
                     }),
                 ), {"failed_check": None, "reason_code": "PRODUCT_JSON_UNAVAILABLE", "timestamp": pass_timestamp, "product_handle": handle}

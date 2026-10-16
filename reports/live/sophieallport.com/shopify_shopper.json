@@ -1,0 +1,49 @@
+{
+  "skill_name": "shopify_shopper",
+  "status": "PASS",
+  "summary": "Shopper journey reached checkout successfully (Product -> Cart -> Checkout)",
+  "details": {
+    "steps": [
+      "Visited Home Page",
+      "Visited Product Collection",
+      "Selected purchasable product",
+      "Clicked Add to Cart",
+      "Cart verified through cart.js: 1 item(s)",
+      "Cart verified: 1 item(s)",
+      "Visited Checkout"
+    ],
+    "cart_item_count": 1,
+    "checkout_url": "https://www.sophieallport.com/checkouts/[redacted]",
+    "selected_product": "https://sophieallport.com/products/gift-voucher",
+    "cart_evidence": [
+      {
+        "variant_id": 31477471805540,
+        "product_id": 3705204342884,
+        "key": "31477471805540:ef15cf6666a629248104225693f5fa8a",
+        "product_title": "Gift Voucher (From £5 to £100)",
+        "variant_title": "£5.00",
+        "handle": "gift-voucher",
+        "quantity": 1
+      }
+    ],
+    "cart_evidence_meta": {
+      "status": "nonempty",
+      "source": "api",
+      "trigger": "api_only_fallback",
+      "attempted_at": "2026-10-15T22:29:10.664110+00:00",
+      "captured_at": "2026-10-15T22:29:10.927383+00:00",
+      "api_total_quantity": 1,
+      "api_line_count": 1,
+      "http_status": 200,
+      "error_code": null
+    }
+  },
+  "error": null,
+  "screenshot": null,
+  "ajax_product_meta": {
+    "status": 200,
+    "final_url": "https://www.sophieallport.com/products/gift-voucher.js",
+    "handle": null
+  },
+  "intercepted_pointer_elements": []
+}

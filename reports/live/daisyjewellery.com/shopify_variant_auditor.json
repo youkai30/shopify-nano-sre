@@ -1,0 +1,39 @@
+{
+  "skill_name": "shopify_variant_auditor",
+  "status": "WARN",
+  "summary": "Variant audit completed with warnings: variant_identity, variant_price, variant_image",
+  "details": {
+    "steps": [
+      "Auditing product handle: daisy-egift-card"
+    ],
+    "product_handle": "daisy-egift-card",
+    "expected_variant_id": 56278733062526,
+    "checks": {
+      "variant_identity": {
+        "status": "WARN",
+        "summary": "Partial or ambiguous option selection in DOM",
+        "expected_variant_id": 56278733062526
+      },
+      "variant_price": {
+        "status": "WARN",
+        "summary": "Option selection for target variant was unproven or incomplete"
+      },
+      "variant_image": {
+        "status": "WARN",
+        "summary": "Option selection for target variant was unproven or incomplete"
+      },
+      "variant_availability_display": {
+        "status": "NOT_APPLICABLE",
+        "summary": "No unavailable variants exist in product data"
+      }
+    }
+  },
+  "error": null,
+  "screenshot": "reports/live/daisyjewellery.com/shopify_variant_auditor_screenshot.png",
+  "ajax_product_meta": {
+    "status": null,
+    "final_url": null,
+    "handle": null
+  },
+  "intercepted_pointer_elements": []
+}

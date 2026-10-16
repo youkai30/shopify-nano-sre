@@ -1,0 +1,25 @@
+{
+  "skill_name": "shopify_cart_consistency_auditor",
+  "status": "WARN",
+  "summary": "Clicking Add to Cart button failed: Locator.click: Timeout 10000ms exceeded.\nCall log:\n  - waiting for locator(\"form[action*=\\\"/cart/add\\\"], form.prd-ProductOffers_Form, [data-type=\\\"add-to-cart-form\\\"]\").first.locator(\"button[type=\\\"submit\\\"]:has-text(\\\"add\\\"):visible:not([disabled])\").first\n    - locator resolved to <button type=\"submit\" class=\"button w-full klatc\">Add to basket</button>\n  - attempting click action\n    2 × waiting for element to be visible, enabled and stable\n      - element is visible, enabled and stable\n      - scrolling into view if needed\n      - done scrolling\n      - <div role=\"dialog\" aria-modal=\"true\" aria-label=\"POPUP Form\" data-kl-scroll-locking-modal=\"true\" class=\"needsclick  kl-private-reset-css-Xuajs1\">…</div> from <div>…</div> subtree intercepts pointer events\n    - retrying click action\n    - waiting 20ms\n    2 × waiting for element to be visible, enabled and stable\n      - element is visible, enabled and stable\n      - scrolling into view if needed\n      - done scrolling\n      - <div role=\"dialog\" aria-modal=\"true\" aria-label=\"POPUP Form\" data-kl-scroll-locking-modal=\"true\" class=\"needsclick  kl-private-reset-css-Xuajs1\">…</div> from <div>…</div> subtree intercepts pointer events\n    - retrying click action\n      - waiting 100ms\n    15 × waiting for element to be visible, enabled and stable\n       - element is visible, enabled and stable\n       - scrolling into view if needed\n       - done scrolling\n       - <div role=\"dialog\" aria-modal=\"true\" aria-label=\"POPUP Form\" data-kl-scroll-locking-modal=\"true\" class=\"needsclick  kl-private-reset-css-Xuajs1\">…</div> from <div>…</div> subtree intercepts pointer events\n     - retrying click action\n       - waiting 500ms\n",
+  "details": {
+    "reason_code": "ATC_CLICK_FAILED",
+    "steps": [
+      "Auditing product handle: hazel-corset-beaded-cuff-black"
+    ],
+    "checks": {}
+  },
+  "error": null,
+  "screenshot": "reports/live/regalrose.co.uk/shopify_cart_consistency_auditor_screenshot.png",
+  "ajax_product_meta": {
+    "status": 200,
+    "final_url": "https://www.regalrose.co.uk/products/hazel-corset-beaded-cuff-black.js",
+    "handle": null
+  },
+  "intercepted_pointer_elements": [
+    {
+      "tagName": "DIV",
+      "outerHTML": "<div role=\"dialog\" aria-modal=\"true\" aria-label=\"POPUP Form\" class=\"needsclick  kl-private-reset-css-Xuajs1\" data-kl-scroll-locking-modal=\"true\" style=\"display: flex; z-index: 90000; position: fixed; left: 0px; top: 0px; width: 100%; height: 100%; justify-content: center; align-items: center; overfl"
+    }
+  ]
+}

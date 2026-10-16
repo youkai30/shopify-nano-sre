@@ -1,0 +1,49 @@
+{
+  "skill_name": "shopify_shopper",
+  "status": "PASS",
+  "summary": "Shopper journey reached checkout successfully (Product -> Cart -> Checkout)",
+  "details": {
+    "steps": [
+      "Visited Home Page",
+      "Visited Product Collection",
+      "Selected purchasable product",
+      "Clicked Add to Cart",
+      "Cart verified through cart.js: 1 item(s)",
+      "Cart verified: 1 item(s)",
+      "Visited Checkout"
+    ],
+    "cart_item_count": 1,
+    "checkout_url": "https://mustardmade.com/checkouts/[redacted]",
+    "selected_product": "https://mustardmade.com/products/the-flutes-fazeek-mustard-exclusive-collaboration",
+    "cart_evidence": [
+      {
+        "variant_id": 40874811228245,
+        "product_id": 7029724381269,
+        "key": "40874811228245:5ccdeaff1befe729cbb87b3e3c065151",
+        "product_title": "The Flutes",
+        "variant_title": null,
+        "handle": "the-flutes-fazeek-mustard-exclusive-collaboration",
+        "quantity": 1
+      }
+    ],
+    "cart_evidence_meta": {
+      "status": "nonempty",
+      "source": "api",
+      "trigger": "api_only_fallback",
+      "attempted_at": "2026-10-15T22:30:10.176649+00:00",
+      "captured_at": "2026-10-15T22:30:11.454001+00:00",
+      "api_total_quantity": 1,
+      "api_line_count": 1,
+      "http_status": 200,
+      "error_code": null
+    }
+  },
+  "error": null,
+  "screenshot": null,
+  "ajax_product_meta": {
+    "status": null,
+    "final_url": null,
+    "handle": null
+  },
+  "intercepted_pointer_elements": []
+}

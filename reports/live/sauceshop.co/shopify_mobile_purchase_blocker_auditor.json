@@ -1,0 +1,98 @@
+{
+  "skill_name": "shopify_mobile_purchase_blocker_auditor",
+  "status": "WARN",
+  "summary": "Mobile option selection issue: Option selection in DOM could not be proven for all options ({})",
+  "details": {
+    "reason_code": "UNPROVEN_OPTION_PATTERN",
+    "blocker_identity": {
+      "reason_code": "UNPROVEN_OPTION_PATTERN",
+      "product_handle": "custom-gift-box",
+      "target_variant_id": 55900780724608,
+      "proven_dom_options": {},
+      "affected_control": "variant_option",
+      "fault_descriptor": "Option selection in DOM could not be proven for all options ({})"
+    },
+    "steps": [
+      "Auditing product handle on mobile (390x844): custom-gift-box",
+      "Option selection issue: Option selection in DOM could not be proven for all options ({})"
+    ],
+    "proven_purchase_conditions": {
+      "product_handle": "custom-gift-box",
+      "target_variant_id": 55900780724608,
+      "proven_dom_options": {},
+      "required_consents_satisfied": false
+    },
+    "expected": "Mandatory option can be interacted with and selected in DOM on mobile",
+    "observed": "Option selection failed or unproven: Option selection in DOM could not be proven for all options ({})",
+    "timestamp": "2026-10-15T22:25:33.156213+00:00",
+    "reproduction_steps": [
+      "Navigate to https://www.sauceshop.co/products/custom-gift-box",
+      "Select option values for variant [REDACTED][REDACTED]"
+    ],
+    "redacted_screenshot": null,
+    "network_cart_evidence": {},
+    "mobile_context_config": {
+      "name": "390x844",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+      "is_mobile": true,
+      "has_touch": true,
+      "environment": "Chromium mobile emulation (390x844, touch-enabled)"
+    },
+    "environment": "Chromium mobile emulation",
+    "tested_viewports": [
+      "390x844",
+      "360x800"
+    ],
+    "viewport_results": {
+      "390x844": {
+        "status": "WARN",
+        "summary": "Mobile option selection issue: Option selection in DOM could not be proven for all options ({})",
+        "reason_code": "UNPROVEN_OPTION_PATTERN",
+        "blocker_identity": {
+          "reason_code": "UNPROVEN_OPTION_PATTERN",
+          "product_handle": "custom-gift-box",
+          "target_variant_id": 55900780724608,
+          "proven_dom_options": {},
+          "affected_control": "variant_option",
+          "fault_descriptor": "Option selection in DOM could not be proven for all options ({})"
+        }
+      },
+      "360x800": {
+        "status": "WARN",
+        "summary": "Mobile option selection issue: Option selection in DOM could not be proven for all options ({})",
+        "reason_code": "UNPROVEN_OPTION_PATTERN",
+        "blocker_identity": {
+          "reason_code": "UNPROVEN_OPTION_PATTERN",
+          "product_handle": "custom-gift-box",
+          "target_variant_id": 55900780724608,
+          "proven_dom_options": {},
+          "affected_control": "variant_option",
+          "fault_descriptor": "Option selection in DOM could not be proven for all options ({})"
+        }
+      }
+    },
+    "desktop_comparison": {
+      "classification": "NOT_NEEDED_FOR_WARN"
+    },
+    "reproduction_summary": {
+      "classification": "NOT_NEEDED"
+    }
+  },
+  "error": null,
+  "screenshot": "reports/live/sauceshop.co/shopify_mobile_purchase_blocker_auditor_screenshot.png",
+  "ajax_product_meta": {
+    "status": null,
+    "final_url": null,
+    "handle": null
+  },
+  "intercepted_pointer_elements": [
+    {
+      "tagName": "DIV",
+      "outerHTML": "<div class=\"build-a-bundle__info-container fixed top-full desktop:top-0 bottom-0 left-0 right-0 desktop:relative desktop:block desktop:col-span-4 z-modal desktop:z-30 flex items-end w-full desktop:-mt-30\">\n            <div class=\"build-a-bundle__info sticky top-28 desktop:top-36 left-0 right-0 deskt"
+    }
+  ]
+}

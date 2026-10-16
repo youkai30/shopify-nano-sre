@@ -1,0 +1,47 @@
+{
+  "skill_name": "shopify_shopper",
+  "status": "WARN",
+  "summary": "Could not find a product with an enabled Add to Cart button",
+  "details": {
+    "steps": [
+      "Visited Home Page",
+      "Visited Product Collection",
+      "New-in collection yielded no products; falling back to homepage product discovery"
+    ],
+    "products_tested": 14,
+    "product_urls_found": 14,
+    "cart_evidence": [],
+    "cart_evidence_meta": {
+      "status": "not_attempted",
+      "source": "none",
+      "trigger": null,
+      "attempted_at": null,
+      "captured_at": null,
+      "api_total_quantity": null,
+      "api_line_count": null,
+      "http_status": null,
+      "error_code": null
+    }
+  },
+  "error": null,
+  "screenshot": "reports/live/hiutdenim.co.uk/shopify_shopper_screenshot.png",
+  "ajax_product_meta": {
+    "status": null,
+    "final_url": null,
+    "handle": null
+  },
+  "intercepted_pointer_elements": [
+    {
+      "tagName": "DIV",
+      "outerHTML": "<div aria-modal=\"true\" class=\"overlay\" role=\"dialog\"><button type=\"button\" aria-label=\"Close\" class=\"close-outside\"></button><aside class=\"flex flex-col py-4\"><header class=\"pl-4 pr-5\"><h3 class=\"uppercase text-xs font-semibold tracking-widest\">CART</h3><button type=\"button\" class=\"close reset\" aria"
+    },
+    {
+      "tagName": "DIV",
+      "outerHTML": "<div aria-modal=\"true\" class=\"overlay\" role=\"dialog\"><button type=\"button\" aria-label=\"Close\" class=\"close-outside\"></button><aside class=\"flex flex-col py-4\"><header class=\"pl-4 pr-5\"><h3 class=\"uppercase text-xs font-semibold tracking-widest\">SEARCH</h3><button type=\"button\" class=\"close reset\" ar"
+    },
+    {
+      "tagName": "DIV",
+      "outerHTML": "<div aria-modal=\"true\" class=\"overlay\" role=\"dialog\"><button type=\"button\" aria-label=\"Close\" class=\"close-outside\"></button><aside class=\"flex flex-col py-4\"><header class=\"pl-4 pr-5\"><h3 class=\"uppercase text-xs font-semibold tracking-widest\">MENU</h3><button type=\"button\" class=\"close reset\" aria"
+    }
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "skill_name": "shopify_shopper",
+  "status": "PASS",
+  "summary": "Shopper journey reached checkout successfully (Product -> Cart -> Checkout)",
+  "details": {
+    "steps": [
+      "Visited Home Page",
+      "Visited Product Collection",
+      "Selected purchasable product",
+      "Clicked Add to Cart",
+      "Cart verified through cart.js: 1 item(s)",
+      "Cart verified: 1 item(s)",
+      "Visited Checkout"
+    ],
+    "cart_item_count": 1,
+    "checkout_url": "https://www.sauceshop.co/checkouts/[redacted]",
+    "selected_product": "https://sauceshop.co/products/hot-sauce-gift-set",
+    "cart_evidence": [
+      {
+        "variant_id": 56046069940608,
+        "product_id": 15190966043008,
+        "key": "56046069940608:5be9b9eef38cb62c7d7f3a9d81bdb92a",
+        "product_title": "Hot Sauce Gift Box",
+        "variant_title": null,
+        "handle": "hot-sauce-gift-set",
+        "quantity": 1
+      }
+    ],
+    "cart_evidence_meta": {
+      "status": "nonempty",
+      "source": "api",
+      "trigger": "api_only_fallback",
+      "attempted_at": "2026-10-15T22:24:52.100748+00:00",
+      "captured_at": "2026-10-15T22:24:52.417084+00:00",
+      "api_total_quantity": 1,
+      "api_line_count": 1,
+      "http_status": 200,
+      "error_code": null
+    }
+  },
+  "error": null,
+  "screenshot": null,
+  "ajax_product_meta": {
+    "status": null,
+    "final_url": null,
+    "handle": null
+  },
+  "intercepted_pointer_elements": []
+}

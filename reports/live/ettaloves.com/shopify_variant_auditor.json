@@ -1,0 +1,18 @@
+{
+  "skill_name": "shopify_variant_auditor",
+  "status": "WARN",
+  "summary": "Could not establish main product form binding on PDP",
+  "details": {
+    "steps": [
+      "Auditing product handle: etta-loves-x-liberty-sensory-muslin-blanket-suitable-from-birth"
+    ]
+  },
+  "error": null,
+  "screenshot": "reports/live/ettaloves.com/shopify_variant_auditor_screenshot.png",
+  "ajax_product_meta": {
+    "status": null,
+    "final_url": null,
+    "handle": null
+  },
+  "intercepted_pointer_elements": []
+}

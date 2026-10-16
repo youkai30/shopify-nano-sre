@@ -1,0 +1,16 @@
+Starting audit for store: https://daisyjewellery.com/
+Navigating to https://daisyjewellery.com/ with wait_until='domcontentloaded'
+Executing skill: shopify_shopper
+Finished skill shopify_shopper: WARN - Checkout navigation did not reach an expected checkout URL
+Executing skill: shopify_variant_auditor
+Finished skill shopify_variant_auditor: WARN - Variant audit completed with warnings: variant_identity, variant_price, variant_image
+Executing skill: shopify_purchase_blocker_auditor
+Finished skill shopify_purchase_blocker_auditor: WARN - Option selection issue: Option selection in DOM could not be proven for all options ({})
+Executing skill: shopify_mobile_purchase_blocker_auditor
+Finished skill shopify_mobile_purchase_blocker_auditor: WARN - Mobile option selection issue: Option selection in DOM could not be proven for all options ({})
+Executing skill: shopify_cart_consistency_auditor
+Finished skill shopify_cart_consistency_auditor: WARN - Variant selection unproven in DOM: Option control 'Denomination=20' exists but produced no active selection state in DOM
+Executing skill: shopify_checkout_blocker_auditor
+Finished skill shopify_checkout_blocker_auditor: WARN - Target URL is outside local sandbox origin; checkout audit skipped for safety
+Executing skill: shopify_search_discovery_auditor
+Finished skill shopify_search_discovery_auditor: WARN - Search query missing; search audit skipped with WARN

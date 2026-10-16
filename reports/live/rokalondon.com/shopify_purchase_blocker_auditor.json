@@ -1,0 +1,77 @@
+{
+  "skill_name": "shopify_purchase_blocker_auditor",
+  "status": "WARN",
+  "summary": "Option selection issue: Option selection in DOM could not be proven for all options ({})",
+  "details": {
+    "reason_code": "UNPROVEN_OPTION_PATTERN",
+    "steps": [
+      "Auditing product handle: oxford-shoulder-bag-in-dijon",
+      "Dismissed modal overlay/popup",
+      "Option selection issue: Option selection in DOM could not be proven for all options ({})"
+    ],
+    "proven_purchase_conditions": {
+      "product_handle": "oxford-shoulder-bag-in-dijon",
+      "target_variant_id": 42177755316327,
+      "proven_dom_options": {},
+      "required_consents_satisfied": false
+    },
+    "expected": "Mandatory option can be interacted with and selected",
+    "observed": "Option selection failed or unproven: Option selection in DOM could not be proven for all options ({})",
+    "timestamp": "2026-10-15T22:26:49.975222+00:00",
+    "reproduction_steps": [
+      "Navigate to https://rokalondon.com/products/oxford-shoulder-bag-in-dijon",
+      "Select option values for variant [REDACTED][REDACTED]"
+    ],
+    "redacted_screenshot": "reports/screenshots/blocker_audit_option_issue_1792103209.png",
+    "network_cart_evidence": {}
+  },
+  "error": null,
+  "screenshot": "reports/live/rokalondon.com/shopify_purchase_blocker_auditor_screenshot.png",
+  "ajax_product_meta": {
+    "status": 200,
+    "final_url": "https://rokalondon.com/products/oxford-shoulder-bag-in-dijon.js",
+    "handle": null
+  },
+  "intercepted_pointer_elements": [
+    {
+      "tagName": "SPAN",
+      "outerHTML": "<span class=\"animated-search-text__overlay\" data-animated-search-text-overlay=\"\" aria-hidden=\"false\">\n        <span class=\"animated-search-text__prefix\" style=\"\">Search</span>\n        <span class=\"animated-search-text__typewriter\" data-animated-search-text-typewriter=\"\" style=\"\">for </span>\n      </"
+    },
+    {
+      "tagName": "PRODUCT-DYNAMIC-BADGES",
+      "outerHTML": "<product-dynamic-badges class=\"product-badges product-badges--overlay\" data-product-id=\"7531638587495\" data-low-stock-threshold=\"5\" data-product-available=\"true\" data-badge-limit=\"2\" data-sale-label=\"__PERCENT__% off\" data-sale-fallback=\"Sale\" data-variants=\"[{&quot;id&quot;:42177755480167,&quot;pri"
+    },
+    {
+      "tagName": "PRODUCT-DYNAMIC-BADGES",
+      "outerHTML": "<product-dynamic-badges class=\"product-badges product-badges--overlay\" data-product-id=\"7531638620263\" data-low-stock-threshold=\"5\" data-product-available=\"true\" data-badge-limit=\"2\" data-sale-label=\"__PERCENT__% off\" data-sale-fallback=\"Sale\" data-variants=\"[{&quot;id&quot;:42177755512935,&quot;pri"
+    },
+    {
+      "tagName": "PRODUCT-DYNAMIC-BADGES",
+      "outerHTML": "<product-dynamic-badges class=\"product-badges product-badges--overlay\" data-product-id=\"7531629412455\" data-low-stock-threshold=\"5\" data-product-available=\"true\" data-badge-limit=\"2\" data-sale-label=\"__PERCENT__% off\" data-sale-fallback=\"Sale\" data-variants=\"[{&quot;id&quot;:42177743257703,&quot;pri"
+    },
+    {
+      "tagName": "PRODUCT-DYNAMIC-BADGES",
+      "outerHTML": "<product-dynamic-badges class=\"product-badges product-badges--overlay\" data-product-id=\"7531638521959\" data-low-stock-threshold=\"5\" data-product-available=\"true\" data-badge-limit=\"2\" data-sale-label=\"__PERCENT__% off\" data-sale-fallback=\"Sale\" data-variants=\"[{&quot;id&quot;:42177755414631,&quot;pri"
+    },
+    {
+      "tagName": "PRODUCT-DYNAMIC-BADGES",
+      "outerHTML": "<product-dynamic-badges class=\"product-badges product-badges--overlay\" data-product-id=\"7517624795239\" data-low-stock-threshold=\"5\" data-product-available=\"true\" data-badge-limit=\"2\" data-sale-label=\"__PERCENT__% off\" data-sale-fallback=\"Sale\" data-variants=\"[{&quot;id&quot;:42136931762279,&quot;pri"
+    },
+    {
+      "tagName": "PRODUCT-DYNAMIC-BADGES",
+      "outerHTML": "<product-dynamic-badges class=\"product-badges product-badges--overlay\" data-product-id=\"7531638292583\" data-low-stock-threshold=\"5\" data-product-available=\"true\" data-badge-limit=\"2\" data-sale-label=\"__PERCENT__% off\" data-sale-fallback=\"Sale\" data-variants=\"[{&quot;id&quot;:42177755185255,&quot;pri"
+    },
+    {
+      "tagName": "PRODUCT-DYNAMIC-BADGES",
+      "outerHTML": "<product-dynamic-badges class=\"product-badges product-badges--overlay\" data-product-id=\"7531638325351\" data-low-stock-threshold=\"5\" data-product-available=\"true\" data-badge-limit=\"2\" data-sale-label=\"__PERCENT__% off\" data-sale-fallback=\"Sale\" data-variants=\"[{&quot;id&quot;:42177755218023,&quot;pri"
+    },
+    {
+      "tagName": "PRODUCT-DYNAMIC-BADGES",
+      "outerHTML": "<product-dynamic-badges class=\"product-badges product-badges--overlay\" data-product-id=\"7531638390887\" data-low-stock-threshold=\"5\" data-product-available=\"true\" data-badge-limit=\"2\" data-sale-label=\"__PERCENT__% off\" data-sale-fallback=\"Sale\" data-variants=\"[{&quot;id&quot;:42177755283559,&quot;pri"
+    },
+    {
+      "tagName": "DIV",
+      "outerHTML": "<div id=\"salesfire-overlay\" style=\"position: fixed; top: 0px; visibility: visible; left: 0px; height: 100%; width: 100%; z-index: 999999999; overflow: inherit; color-scheme: normal; display: block;\"><iframe scrolling=\"no\" src=\"about:blank\" style=\"border: none; height: 1px; width: 100%; min-height: 1"
+    }
+  ]
+}
