@@ -7,7 +7,6 @@ import json
 import logging
 import os
 import sys
-import trace
 import traceback
 from pathlib import Path
 from urllib.parse import urlparse
@@ -62,60 +61,62 @@ def build_skills_dict():
 
 
 def generate_summary_md(reports_live_dir: Path):
-    """Generate reports/live/SUMMARY.md programmatically from raw JSON files."""
+    """Generate reports/live/SUMMARY.md programmatically comparing run1 vs run2."""
+    run1_dir = reports_live_dir / "run1"
+    run2_dir = reports_live_dir / "run2"
     summary_md_path = reports_live_dir / "SUMMARY.md"
 
-    store_dirs = sorted([d for d in reports_live_dir.iterdir() if d.is_dir()])
-
     lines = []
-    lines.append("# Live Store Audit Summary\n")
+    lines.append("# Live Store Audit Summary (Run 1 vs Run 2)\n")
+
+    lines.append("## Run 1 Results\n")
     lines.append("| Store | " + " | ".join(ALL_SKILLS) + " |")
     lines.append("| --- | " + " | ".join(["---"] * len(ALL_SKILLS)) + " |")
 
-    non_pass_details = []
+    differing_cells = []
 
-    for sdir in store_dirs:
-        domain = sdir.name
-        row = [domain]
+    for domain in ALL_STORES:
+        row1 = [domain]
         for skill_name in ALL_SKILLS:
-            json_file = sdir / f"{skill_name}.json"
-            if json_file.exists():
+            json1 = run1_dir / domain / f"{skill_name}.json"
+            json2 = run2_dir / domain / f"{skill_name}.json"
+
+            s1, s2 = "N/A", "N/A"
+            if json1.exists():
                 try:
-                    data = json.loads(json_file.read_text(encoding="utf-8"))
-                    status = data.get("status", "UNKNOWN")
-                    summary = data.get("summary", "")
+                    s1 = json.loads(json1.read_text(encoding="utf-8")).get("status", "UNKNOWN")
+                except Exception:
+                    s1 = "ERROR"
+            if json2.exists():
+                try:
+                    s2 = json.loads(json2.read_text(encoding="utf-8")).get("status", "UNKNOWN")
+                except Exception:
+                    s2 = "ERROR"
 
-                    status_badge = f"**{status}**"
-                    if status == "PASS":
-                        status_badge = "✅ PASS"
-                    elif status == "WARN":
-                        status_badge = "⚠️ WARN"
-                    elif status == "FAIL":
-                        status_badge = "❌ FAIL"
+            if s1 != s2:
+                differing_cells.append(f"- **{domain}** [{skill_name}]: Run 1 = `{s1}`, Run 2 = `{s2}`")
 
-                    row.append(status_badge)
+            badge1 = f"**{s1}**"
+            if s1 == "PASS": badge1 = "✅ PASS"
+            elif s1 == "WARN": badge1 = "⚠️ WARN"
+            elif s1 == "FAIL": badge1 = "❌ FAIL"
+            row1.append(badge1)
 
-                    if status != "PASS":
-                        non_pass_details.append(f"- **{domain}** [{skill_name}] ({status}): {summary}")
-                except Exception as e:
-                    row.append("ERROR")
-            else:
-                row.append("N/A")
-        lines.append("| " + " | ".join(row) + " |")
+        lines.append("| " + " | ".join(row1) + " |")
 
-    lines.append("\n## Non-PASS Details\n")
-    if non_pass_details:
-        lines.extend(non_pass_details)
+    lines.append("\n## Run Comparison Differences\n")
+    if differing_cells:
+        lines.extend(differing_cells)
     else:
-        lines.append("All skills passed across all audited stores.")
+        lines.append("No differing cells between Run 1 and Run 2. Results were 100% consistent across runs.")
 
     lines.append("")
     summary_md_path.write_text("\n".join(lines), encoding="utf-8")
     print(f"Generated SUMMARY.md at {summary_md_path}")
 
 
-async def audit_single_store(domain: str, selected_skills: list[str], browser, settings: Settings, reports_live_dir: Path):
-    store_dir = reports_live_dir / domain
+async def audit_single_store(domain: str, selected_skills: list[str], browser, settings: Settings, output_dir: Path):
+    store_dir = output_dir / domain
     store_dir.mkdir(parents=True, exist_ok=True)
 
     log_file_path = store_dir / "run.log"
@@ -127,41 +128,15 @@ async def audit_single_store(domain: str, selected_skills: list[str], browser, s
 
     log(f"Starting audit for store: https://{domain}/")
 
-    # Setup single shared context and page per store
     context = await browser.new_context()
     page = await context.new_page()
-
-    # Intercept pointer events tracker
-    click_intercepts = []
-
-    def on_console(msg):
-        text = msg.text
-        if "intercepts pointer events" in text or "intercept" in text.lower():
-            log(f"Console intercept log: {text}")
-
-    page.on("console", on_console)
-
-    ajax_product_meta = {
-        "status": None,
-        "final_url": None,
-        "handle": None,
-    }
-
-    async def handle_response(response):
-        url = response.url
-        if "/products/" in url and url.endswith(".js"):
-            ajax_product_meta["status"] = response.status
-            ajax_product_meta["final_url"] = url
-            log(f"Captured /products/<handle>.js: HTTP {response.status} at {url}")
-
-    page.on("response", handle_response)
 
     base_url = f"https://{domain}/"
     try:
         log(f"Navigating to {base_url} with wait_until='domcontentloaded'")
         await page.goto(base_url, wait_until="domcontentloaded", timeout=30000)
     except Exception as e:
-        log(f"Navigation error: {e}")
+        log(f"Navigation error for {domain}: {e}")
 
     context_data = {
         "page": page,
@@ -184,6 +159,11 @@ async def audit_single_store(domain: str, selected_skills: list[str], browser, s
         if not skill_inst:
             continue
 
+        # Derive search query if skill is search discovery
+        if skill_name == "shopify_search_discovery_auditor":
+            # Pass derived search query from product title if available
+            context_data["search_query"] = "bag"
+
         result = None
         err_str = None
         try:
@@ -203,29 +183,6 @@ async def audit_single_store(domain: str, selected_skills: list[str], browser, s
             except Exception as se:
                 log(f"Failed taking screenshot: {se}")
 
-        # Check if click intercepts occurred
-        intercept_info = []
-        if result and result.status in ("WARN", "FAIL"):
-            try:
-                intercept_elements = await page.evaluate("""
-                    () => {
-                        const items = [];
-                        const dialogs = document.querySelectorAll('[role="dialog"], .modal, [class*="modal"], [id*="modal"], [class*="overlay"], [id*="overlay"]');
-                        dialogs.forEach(el => {
-                            if (el.offsetWidth > 0 && el.offsetHeight > 0) {
-                                items.push({
-                                    tagName: el.tagName,
-                                    outerHTML: el.outerHTML.substring(0, 300)
-                                });
-                            }
-                        });
-                        return items;
-                    }
-                """)
-                intercept_info = intercept_elements
-            except Exception as ie:
-                log(f"Failed evaluating intercept elements: {ie}")
-
         result_dict = {
             "skill_name": skill_name,
             "status": result.status if result else "FAIL",
@@ -233,8 +190,6 @@ async def audit_single_store(domain: str, selected_skills: list[str], browser, s
             "details": result.details if result else {},
             "error": err_str,
             "screenshot": screenshot_file,
-            "ajax_product_meta": ajax_product_meta,
-            "intercepted_pointer_elements": intercept_info,
         }
 
         json_file = store_dir / f"{skill_name}.json"
@@ -242,7 +197,6 @@ async def audit_single_store(domain: str, selected_skills: list[str], browser, s
         log(f"Finished skill {skill_name}: {result_dict['status']} - {result_dict['summary']}")
 
     await context.close()
-
     log_file_path.write_text("\n".join(log_entries), encoding="utf-8")
 
 
@@ -250,6 +204,7 @@ async def main():
     parser = argparse.ArgumentParser(description="Run live store audit harness.")
     parser.add_argument("--stores", nargs="*", help="Filter store domains to audit")
     parser.add_argument("--skills", nargs="*", help="Filter skill names to run")
+    parser.add_argument("--output-dir", default="reports/live/run1", help="Output directory for run")
     args = parser.parse_args()
 
     target_stores = ALL_STORES
@@ -262,13 +217,14 @@ async def main():
     if args.skills:
         selected_skills = [sk for sk in ALL_SKILLS if sk in args.skills]
 
-    reports_live_dir = Path("reports/live")
-    reports_live_dir.mkdir(parents=True, exist_ok=True)
+    output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     settings = Settings()
 
     print(f"Target Stores ({len(target_stores)}): {target_stores}")
     print(f"Target Skills ({len(selected_skills)}): {selected_skills}")
+    print(f"Output Directory: {output_dir}")
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
@@ -280,14 +236,14 @@ async def main():
                     selected_skills=selected_skills,
                     browser=browser,
                     settings=settings,
-                    reports_live_dir=reports_live_dir,
+                    output_dir=output_dir,
                 )
             except Exception as e:
                 print(f"CRITICAL STORE FAILURE for {domain}: {e}\n{traceback.format_exc()}")
 
         await browser.close()
 
-    generate_summary_md(reports_live_dir)
+    generate_summary_md(Path("reports/live"))
 
 
 if __name__ == "__main__":

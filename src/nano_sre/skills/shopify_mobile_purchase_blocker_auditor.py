@@ -445,52 +445,39 @@ class ShopifyMobilePurchaseBlockerAuditor(Skill):
         try:
             audit_page.on("pageerror", on_page_error)
 
+            from nano_sre.utils.shopify import pick_representative_product
+
             current_url = _sanitize_url(audit_page.url or base_url)
             origin, locale = _get_locale_prefix_and_origin(current_url)
             handle = _extract_handle_from_url(current_url)
 
-            if not handle and "/products/" not in current_url.lower():
-                await audit_page.goto(base_url, wait_until="commit", timeout=60000)
-                await asyncio.sleep(1)
-
-                product_links = audit_page.locator('a[href*="/products/"]')
-                count = await product_links.count()
-                for i in range(min(count, 10)):
-                    href = await product_links.nth(i).get_attribute("href")
-                    if href:
-                        handle = _extract_handle_from_url(href)
-                        if handle:
-                            product_url = href if href.startswith("http") else urljoin(base_url, href)
-                            await audit_page.goto(product_url, wait_until="commit", timeout=60000)
-                            await asyncio.sleep(1)
-                            current_url = _sanitize_url(audit_page.url)
-                            origin, locale = _get_locale_prefix_and_origin(current_url)
-                            break
-
+            product_selection_meta = {}
             if not handle:
-                try:
-                    res = await audit_page.request.get(f"{origin}{locale}/products.json?limit=5")
-                    if res.ok:
-                        data = await res.json()
-                        products = data.get("products", [])
-                        if products:
-                            handle = products[0].get("handle")
-                            product_url = f"{origin}{locale}/products/{handle}"
-                            await audit_page.goto(product_url, wait_until="commit", timeout=60000)
-                            await asyncio.sleep(1)
-                            current_url = _sanitize_url(audit_page.url)
-                            origin, locale = _get_locale_prefix_and_origin(current_url)
-                except Exception as e:
-                    logger.debug("Failed products.json lookup: %s", e)
+                chosen_handle, selection_meta = await pick_representative_product(
+                    page=audit_page,
+                    origin=origin,
+                    locale=locale,
+                    base_url=base_url,
+                    prefer_multi_variant=True
+                )
+                product_selection_meta = selection_meta
+                if chosen_handle:
+                    handle = chosen_handle
+                    product_url = f"{origin}{locale}/products/{handle}"
+                    await audit_page.goto(product_url, wait_until="domcontentloaded", timeout=60000)
+                    await asyncio.sleep(1)
+                    current_url = _sanitize_url(audit_page.url)
+                    origin, locale = _get_locale_prefix_and_origin(current_url)
 
             if not handle:
                 return {
                     "status": "WARN",
-                    "summary": "Could not discover a product handle on mobile view to audit purchase blockers",
+                    "summary": "Could not discover a representative product handle on mobile view to audit purchase blockers",
                     "details": {
                         "reason_code": "PRODUCT_NOT_DISCOVERED",
                         "blocker_identity": {},
                         "steps": steps,
+                        "product_selection": product_selection_meta,
                         "proven_purchase_conditions": {},
                         "expected": "Discover a product handle on PDP",
                         "observed": "No product handle discovered",
@@ -507,25 +494,49 @@ class ShopifyMobilePurchaseBlockerAuditor(Skill):
 
             # Fetch product JSON
             ajax_url = f"{origin}{locale}/products/{handle}.js"
+            ajax_product_meta = {
+                "status": None,
+                "final_url": ajax_url,
+                "error_type": None,
+                "error_message": None,
+                "elapsed_ms": None,
+            }
+
             product_data = None
-            try:
-                ajax_res = await audit_page.request.get(ajax_url, timeout=15000)
-                if ajax_res.ok:
-                    product_data = await ajax_res.json()
-            except Exception as e:
-                logger.debug("Ajax product fetch failed: %s", e)
+            t0 = datetime.now()
+            for attempt in range(2):
+                try:
+                    ajax_res = await audit_page.request.get(ajax_url, timeout=15000)
+                    ajax_product_meta["status"] = ajax_res.status
+                    ajax_product_meta["final_url"] = ajax_res.url
+                    if ajax_res.ok:
+                        product_data = await ajax_res.json()
+                        break
+                    else:
+                        ajax_product_meta["error_type"] = f"HTTP_{ajax_res.status}"
+                        ajax_product_meta["error_message"] = f"HTTP {ajax_res.status} response"
+                except Exception as e:
+                    ajax_product_meta["error_type"] = type(e).__name__
+                    ajax_product_meta["error_message"] = str(e)
+                    if attempt == 0:
+                        await asyncio.sleep(0.5)
+
+            ajax_product_meta["elapsed_ms"] = int((datetime.now() - t0).total_seconds() * 1000)
 
             if not product_data:
+                err_desc = f"(status={ajax_product_meta['status']})" if ajax_product_meta['status'] else f"(error_type={ajax_product_meta['error_type']})"
                 return {
                     "status": "WARN",
-                    "summary": f"Could not fetch product JSON from {ajax_url}",
+                    "summary": f"Could not fetch product JSON from {ajax_url} {err_desc}",
                     "details": {
                         "reason_code": "PRODUCT_JSON_UNAVAILABLE",
                         "blocker_identity": {},
                         "steps": steps,
+                        "product_selection": product_selection_meta,
+                        "ajax_product_meta": ajax_product_meta,
                         "proven_purchase_conditions": {},
                         "expected": f"Fetch JSON from {ajax_url}",
-                        "observed": "Request failed or invalid response",
+                        "observed": f"Request failed or invalid response {err_desc}",
                         "timestamp": _now(),
                         "reproduction_steps": [f"GET {ajax_url}"],
                         "redacted_screenshot": None,
@@ -688,37 +699,45 @@ class ShopifyMobilePurchaseBlockerAuditor(Skill):
             # Check un-dismissable overlay or sticky footer blocking button pointer events
             is_blocked, overlay_desc = await self._is_button_blocked_by_overlay(audit_page, atc_button)
             if is_blocked:
-                alt_button = await self._find_alternative_unblocked_atc_button(audit_page, atc_button)
-                if alt_button:
-                    atc_button = alt_button
-                    steps.append("Primary button blocked, but found valid unblocked alternative ATC button")
-                else:
-                    screenshot_path = await self._take_screenshot(audit_page, "button_blocked_overlay")
-                    return {
-                        "status": "FAIL",
-                        "summary": f"Add to Cart button blocked on mobile by un-dismissable overlay or sticky element ({overlay_desc})",
-                        "details": {
-                            "reason_code": "BUTTON_BLOCKED_BY_OVERLAY",
-                            "blocker_identity": {
+                dismissed = await self._dismiss_overlays_if_any(audit_page)
+                steps.append(f"Attempted overlay dismissal on mobile: dismissed={dismissed}")
+                is_blocked_after, overlay_desc_after = await self._is_button_blocked_by_overlay(audit_page, atc_button)
+                if is_blocked_after:
+                    alt_button = await self._find_alternative_unblocked_atc_button(audit_page, atc_button)
+                    if alt_button:
+                        atc_button = alt_button
+                        steps.append("Primary button blocked after dismissal, but found valid unblocked alternative ATC button")
+                    else:
+                        screenshot_path = await self._take_screenshot(audit_page, "button_blocked_overlay")
+                        return {
+                            "status": "FAIL",
+                            "summary": f"Add to Cart button blocked on mobile by un-dismissable overlay or sticky element ({overlay_desc_after})",
+                            "details": {
                                 "reason_code": "BUTTON_BLOCKED_BY_OVERLAY",
-                                "product_handle": handle,
-                                "target_variant_id": target_variant.get("id"),
-                                "proven_dom_options": proven_dom_options,
-                                "affected_control": "add_to_cart_button",
-                                "fault_descriptor": overlay_desc,
+                                "blocker_identity": {
+                                    "reason_code": "BUTTON_BLOCKED_BY_OVERLAY",
+                                    "product_handle": handle,
+                                    "target_variant_id": target_variant.get("id"),
+                                    "proven_dom_options": proven_dom_options,
+                                    "affected_control": "add_to_cart_button",
+                                    "fault_descriptor": overlay_desc_after,
+                                },
+                                "steps": steps + [f"Add to Cart button blocked by overlay after dismissal: {overlay_desc_after}"],
+                                "proven_purchase_conditions": proven_conditions,
+                                "expected": "Add to Cart button directly clickable/tappable without overlay interception",
+                                "observed": f"Pointer events blocked by overlay element ({overlay_desc_after}) after dismissal",
+                                "dismissal_attempted": True,
+                                "dismissal_actions_tried": ["Escape key", "dialog close buttons", "Klaviyo modals", "cookie banners"],
+                                "timestamp": _now(),
+                                "reproduction_steps": [f"Navigate to {current_url}", "Attempt to tap Add to Cart button on mobile"],
+                                "redacted_screenshot": screenshot_path,
+                                "network_cart_evidence": {},
+                                "mobile_context_config": mobile_config,
+                                "environment": mobile_config.get("environment", "Chromium mobile emulation"),
                             },
-                            "steps": steps + [f"Add to Cart button blocked by overlay: {overlay_desc}"],
-                            "proven_purchase_conditions": proven_conditions,
-                            "expected": "Add to Cart button directly clickable/tappable without overlay interception",
-                            "observed": f"Pointer events blocked by overlay element ({overlay_desc})",
-                            "timestamp": _now(),
-                            "reproduction_steps": [f"Navigate to {current_url}", "Attempt to tap Add to Cart button on mobile"],
-                            "redacted_screenshot": screenshot_path,
-                            "network_cart_evidence": {},
-                            "mobile_context_config": mobile_config,
-                            "environment": mobile_config.get("environment", "Chromium mobile emulation"),
-                        },
-                    }
+                        }
+                else:
+                    steps.append("Successfully unblocked mobile Add to Cart button via overlay dismissal")
 
             # Pre-cart snapshot
             meta_before, items_before = await self._fetch_cart_snapshot(audit_page, origin, locale)
@@ -1002,19 +1021,29 @@ class ShopifyMobilePurchaseBlockerAuditor(Skill):
         return None
 
     async def _dismiss_overlays_if_any(self, page) -> bool:
-        """Attempt to dismiss modals/popups/cookie banners naturally."""
-        dismiss_selectors = [
-            '[aria-label*="close" i]:visible',
-            'button.close:visible',
-            '.modal-close:visible',
-            'button:has-text("Accept"):visible',
-            'button:has-text("Close"):visible',
-            'button:has-text("Dismiss"):visible',
-            'button:has-text("Agree"):visible',
-            '.cookie-banner button:visible',
-            '[id*="popup"] button.close:visible',
-        ]
+        """Attempt to dismiss modals/popups/cookie banners naturally (Escape, close buttons, Klaviyo, cookie banners)."""
         dismissed = False
+        try:
+            await page.keyboard.press("Escape")
+            await asyncio.sleep(0.3)
+        except Exception:
+            pass
+
+        dismiss_selectors = [
+            '[role="dialog"] [aria-label*="close" i]:visible',
+            '[role="dialog"] button:has-text("Close"):visible',
+            '[aria-modal="true"] [aria-label*="close" i]:visible',
+            '[aria-modal="true"] button:has-text("Close"):visible',
+            '[data-kl-scroll-locking-modal] [aria-label*="close" i]:visible',
+            '[data-kl-scroll-locking-modal] button:visible',
+            '.needsclick.kl-private-reset-css-Xuajs1 button:visible',
+            '[id*="popup"] button.close:visible',
+            '.cookie-banner button:visible',
+            '#onetrust-accept-btn-handler:visible',
+            'button:has-text("Accept All"):visible',
+            'button:has-text("Accept"):visible',
+            'button:has-text("Dismiss"):visible',
+        ]
         for sel in dismiss_selectors:
             loc = page.locator(sel).first
             if await loc.count() > 0:
